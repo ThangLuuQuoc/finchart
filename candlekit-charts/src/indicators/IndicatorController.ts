@@ -23,7 +23,15 @@ import {
 import type { ChartPlugin, PluginContext } from "../plugins/types";
 import type { Bar } from "../core/types";
 import type { IndicatorRegistry } from "./registry";
-import type { ActiveIndicator, IndicatorBar, IndicatorResult, PlotPoint } from "./types";
+import type {
+  ActiveIndicator,
+  IndicatorBar,
+  IndicatorDef,
+  IndicatorResult,
+  PlotConfig,
+  PlotPoint,
+  StreamingIndicator,
+} from "./types";
 
 const HISTOGRAM_STYLES = new Set(["histogram", "columns"]);
 
@@ -32,6 +40,14 @@ interface Managed {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   pane: any | null;
   isPattern: boolean;
+  /**
+   * Incremental engine (when the def provides one), warmed over the current
+   * history minus the in-progress bar. `pendingTime` is the time (epoch
+   * seconds) of that uncommitted bar: ticks on it go through `peek()`; a newer
+   * bar first commits it via `next()`. Keeps live ticks O(window) instead of
+   * O(history).
+   */
+  stream: { inst: StreamingIndicator; pendingTime: number } | null;
 }
 
 export class IndicatorController implements ChartPlugin {
@@ -42,6 +58,8 @@ export class IndicatorController implements ChartPlugin {
   private getBars: () => readonly Bar[] = () => [];
   private active = new Map<string, ActiveIndicator>();
   private managed = new Map<string, Managed>();
+  private barsCache: IndicatorBar[] = [];
+  private barsCacheDirty = true;
   private markers = new Map<string, SeriesMarker<Time>[]>();
   private markersPlugin: ISeriesMarkersPluginApi<Time> | null = null;
   private onChange?: (names: string[]) => void;
@@ -60,14 +78,18 @@ export class IndicatorController implements ChartPlugin {
   }
 
   onData(): void {
+    this.barsCacheDirty = true;
     this.refresh();
   }
 
   /**
    * Live/replay tick: refresh only the newest point of each active indicator.
-   * Recompute is O(bars) but we `update()` just the last LWC point instead of
-   * re-`setData`-ing the whole series, so streaming stays cheap. Newly-toggled
-   * indicators are materialized by `add()` → `refresh()`, not here.
+   *
+   * Defs that provide a `streaming` engine pay O(indicator window) per tick:
+   * the in-progress bar is previewed with `peek()` and committed exactly once
+   * via `next()` when a newer bar arrives. Defs without one fall back to the
+   * batch recompute (O(bars), `update()`-ing just the last LWC point).
+   * Newly-toggled indicators are materialized by `add()` → `refresh()`, not here.
    */
   onBar(): void {
     const chart = this.chart;
@@ -80,6 +102,12 @@ export class IndicatorController implements ChartPlugin {
       const def = this.registry.get(name);
       const act = this.active.get(name);
       if (!def || !act) continue;
+
+      if (m.stream && !m.isPattern) {
+        this.streamTick(m, def.plotConfig, act, bars);
+        continue;
+      }
+
       let res: IndicatorResult;
       try {
         res = def.calculate(bars, act.params);
@@ -104,6 +132,33 @@ export class IndicatorController implements ChartPlugin {
         } else {
           (s as ISeriesApi<"Line">).update({ time: last.time as Time, value: last.value });
         }
+      }
+    }
+  }
+
+  /** O(window) tick for a streaming-capable indicator. */
+  private streamTick(m: Managed, plotConfig: PlotConfig[], act: ActiveIndicator, bars: IndicatorBar[]): void {
+    const stream = m.stream!;
+    const ib = bars[bars.length - 1]; // the tick already landed in the cache
+    if (ib.time > stream.pendingTime) {
+      // the previously pending bar closed — commit it exactly once
+      const prev = bars[bars.length - 2];
+      if (prev && prev.time === stream.pendingTime) stream.inst.next(prev);
+      stream.pendingTime = ib.time;
+    }
+    const vals = stream.inst.peek(ib);
+    for (const [plotId, v] of Object.entries(vals)) {
+      const s = m.plotSeries.get(plotId);
+      if (!s) continue;
+      const value = typeof v === "number" ? v : v.value;
+      if (Number.isNaN(value)) continue;
+      const pc = plotConfig.find((c) => c.id === plotId);
+      const color = resolveColor(act.colors, plotId, pc?.color);
+      const t = ib.time as Time;
+      if (HISTOGRAM_STYLES.has(pc?.style ?? "")) {
+        (s as ISeriesApi<"Histogram">).update({ time: t, value, color: (typeof v === "object" ? v.color : undefined) ?? color });
+      } else {
+        (s as ISeriesApi<"Line">).update({ time: t, value });
       }
     }
   }
@@ -195,15 +250,24 @@ export class IndicatorController implements ChartPlugin {
 
   // ── Lifecycle reconciliation ─────────────────────────────────────────────────
 
+  /**
+   * Bars converted to {@link IndicatorBar}, cached between calls. A live tick
+   * only appends or replaces the last element instead of re-mapping the whole
+   * history (which allocated O(history) objects per tick). `onData` marks the
+   * cache dirty for a full rebuild.
+   */
   private bars(): IndicatorBar[] {
-    return this.getBars().map((b) => ({
-      time: Math.floor(b.ts / 1000),
-      open: b.open,
-      high: b.high,
-      low: b.low,
-      close: b.close,
-      volume: b.volume ?? 0,
-    }));
+    const src = this.getBars();
+    const cached = this.barsCache;
+    if (this.barsCacheDirty || src.length < cached.length || src.length - cached.length > 1) {
+      this.barsCache = src.map(toIndicatorBar);
+      this.barsCacheDirty = false;
+      return this.barsCache;
+    }
+    if (src.length === 0) return cached;
+    if (src.length === cached.length + 1) cached.push(toIndicatorBar(src[src.length - 1]));
+    else cached[src.length - 1] = toIndicatorBar(src[src.length - 1]);
+    return cached;
   }
 
   private refresh(): void {
@@ -252,6 +316,7 @@ export class IndicatorController implements ChartPlugin {
       } catch {
         continue;
       }
+      m.stream = this.makeStream(def, act, bars);
       if (m.isPattern) {
         this.markers.set(name, buildMarkers(res));
         this.flushMarkers();
@@ -290,7 +355,7 @@ export class IndicatorController implements ChartPlugin {
       if (def.category === "pattern") {
         this.markers.set(name, buildMarkers(res));
         this.flushMarkers();
-        this.managed.set(name, { plotSeries: new Map(), pane: null, isPattern: true });
+        this.managed.set(name, { plotSeries: new Map(), pane: null, isPattern: true, stream: null });
         continue;
       }
 
@@ -344,7 +409,24 @@ export class IndicatorController implements ChartPlugin {
           }
         }
       }
-      this.managed.set(name, { plotSeries, pane, isPattern: false });
+      this.managed.set(name, { plotSeries, pane, isPattern: false, stream: this.makeStream(def, act, bars) });
+    }
+  }
+
+  /**
+   * Build + warm a streaming engine for a def that provides one: commit every
+   * bar except the last (which stays pending — live ticks preview it via
+   * `peek()` until a newer bar commits it). One lightweight O(bars) pass at
+   * toggle/refresh time buys O(window) ticks afterwards.
+   */
+  private makeStream(def: IndicatorDef, act: ActiveIndicator, bars: IndicatorBar[]): Managed["stream"] {
+    if (!def.streaming) return null;
+    try {
+      const inst = def.streaming(act.params);
+      for (let i = 0; i < bars.length - 1; i++) inst.next(bars[i]);
+      return { inst, pendingTime: bars.length > 0 ? bars[bars.length - 1].time : -Infinity };
+    } catch {
+      return null;
     }
   }
 
@@ -390,6 +472,17 @@ export class IndicatorController implements ChartPlugin {
 
 function filterValid(data: PlotPoint[]): PlotPoint[] {
   return data.filter((d) => d.value != null && !Number.isNaN(d.value));
+}
+
+function toIndicatorBar(b: Bar): IndicatorBar {
+  return {
+    time: Math.floor(b.ts / 1000),
+    open: b.open,
+    high: b.high,
+    low: b.low,
+    close: b.close,
+    volume: b.volume ?? 0,
+  };
 }
 
 /** Per-plot user override wins, then the plot's configured color, then grey. */

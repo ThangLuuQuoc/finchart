@@ -50,6 +50,7 @@ export * from "./measurement/MeasurementController";
 export * from "./indicators/types";
 export * from "./indicators/registry";
 export * from "./indicators/builtin";
+export * from "./indicators/streaming";
 export * from "./indicators/IndicatorController";
 
 // ── Replay ──────────────────────────────────────────────────────────────────────

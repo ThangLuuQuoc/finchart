@@ -10,6 +10,17 @@
 
 import { IndicatorRegistry } from "./registry";
 import type { IndicatorBar, IndicatorDef, PlotPoint } from "./types";
+import {
+  streamingSma,
+  streamingEma,
+  streamingWma,
+  streamingVwap,
+  streamingBollinger,
+  streamingRsi,
+  streamingMacd,
+  streamingAtr,
+  streamingStochastic,
+} from "./streaming";
 
 // ── math helpers (operate on plain number[]; null = warmup/undefined) ──────────
 
@@ -119,6 +130,7 @@ const SMA: IndicatorDef = {
   plotConfig: [{ id: "sma", title: "SMA", color: "#2962ff", lineWidth: 2 }],
   hlineConfig: [],
   calculate: (bars, inputs) => ({ plots: { sma: toPoints(bars, smaSeries(closes(bars), int(inputs, "length", 20))) } }),
+  streaming: (inputs) => streamingSma(int(inputs, "length", 20)),
 };
 
 const EMA: IndicatorDef = {
@@ -131,6 +143,7 @@ const EMA: IndicatorDef = {
   plotConfig: [{ id: "ema", title: "EMA", color: "#ff9800", lineWidth: 2 }],
   hlineConfig: [],
   calculate: (bars, inputs) => ({ plots: { ema: toPoints(bars, emaSeries(closes(bars), int(inputs, "length", 20))) } }),
+  streaming: (inputs) => streamingEma(int(inputs, "length", 20)),
 };
 
 const WMA: IndicatorDef = {
@@ -143,6 +156,7 @@ const WMA: IndicatorDef = {
   plotConfig: [{ id: "wma", title: "WMA", color: "#26a69a", lineWidth: 2 }],
   hlineConfig: [],
   calculate: (bars, inputs) => ({ plots: { wma: toPoints(bars, wmaSeries(closes(bars), int(inputs, "length", 20))) } }),
+  streaming: (inputs) => streamingWma(int(inputs, "length", 20)),
 };
 
 const VWAP: IndicatorDef = {
@@ -165,6 +179,7 @@ const VWAP: IndicatorDef = {
     });
     return { plots: { vwap: toPoints(bars, series) } };
   },
+  streaming: () => streamingVwap(),
 };
 
 const Bollinger: IndicatorDef = {
@@ -199,6 +214,7 @@ const Bollinger: IndicatorDef = {
       },
     };
   },
+  streaming: (inputs) => streamingBollinger(int(inputs, "length", 20), num(inputs, "mult", 2)),
 };
 
 const RSI: IndicatorDef = {
@@ -216,8 +232,12 @@ const RSI: IndicatorDef = {
   calculate: (bars, inputs) => {
     const len = int(inputs, "length", 14);
     const c = closes(bars);
-    const gains: number[] = [0];
-    const losses: number[] = [0];
+    // TradingView semantics: the first change is bar0→bar1 (`ta.change` is na
+    // on bar 0), so the smoothing windows hold `len` REAL changes and the
+    // first defined RSI lands on bar index `len`. (Previously a synthetic 0
+    // change was prepended, shifting RSI one bar early with a skewed seed.)
+    const gains: number[] = [];
+    const losses: number[] = [];
     for (let i = 1; i < c.length; i++) {
       const ch = c[i] - c[i - 1];
       gains.push(Math.max(0, ch));
@@ -226,15 +246,17 @@ const RSI: IndicatorDef = {
     const avgGain = rmaSeries(gains, len);
     const avgLoss = rmaSeries(losses, len);
     const rsi: Series = c.map((_, i) => {
-      const g = avgGain[i];
-      const l = avgLoss[i];
+      if (i === 0) return null;
+      const g = avgGain[i - 1];
+      const l = avgLoss[i - 1];
       if (g == null || l == null) return null;
-      if (l === 0) return 100;
+      if (l === 0) return g === 0 ? null : 100;
       const rs = g / l;
       return 100 - 100 / (1 + rs);
     });
     return { plots: { rsi: toPoints(bars, rsi) } };
   },
+  streaming: (inputs) => streamingRsi(int(inputs, "length", 14)),
 };
 
 const MACD: IndicatorDef = {
@@ -285,6 +307,7 @@ const MACD: IndicatorDef = {
     }
     return { plots: { hist: histPts, macd: toPoints(bars, macd), signal: toPoints(bars, signal) } };
   },
+  streaming: (inputs) => streamingMacd(int(inputs, "fast", 12), int(inputs, "slow", 26), int(inputs, "signal", 9)),
 };
 
 const ATR: IndicatorDef = {
@@ -305,6 +328,7 @@ const ATR: IndicatorDef = {
     });
     return { plots: { atr: toPoints(bars, rmaSeries(tr, len)) } };
   },
+  streaming: (inputs) => streamingAtr(int(inputs, "length", 14)),
 };
 
 const Stochastic: IndicatorDef = {
@@ -355,6 +379,7 @@ const Stochastic: IndicatorDef = {
     });
     return { plots: { k: toPoints(bars, kSeries), d: toPoints(bars, dSeries) } };
   },
+  streaming: (inputs) => streamingStochastic(int(inputs, "kLength", 14), int(inputs, "dLength", 3)),
 };
 
 /** All built-in definitions, in display order. */

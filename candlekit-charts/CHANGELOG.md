@@ -8,10 +8,33 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Streaming indicator engines** — `IndicatorDef` gains an optional
+  `streaming(inputs)` factory returning a `StreamingIndicator`
+  (`next(bar)` commits a confirmed bar, `peek(bar)` previews the in-progress
+  bar without mutating state). `IndicatorController.onBar` uses it when
+  present, dropping live-tick cost from O(history) per indicator to
+  O(indicator window) — measured ~39 ms → ~1 ms per tick with 5 active
+  indicators on 50k bars. All 9 builtins ship engines, verified value-identical
+  to their batch `calculate` by a bar-for-bar parity suite (minor — additive
+  API; defs without `streaming` keep the batch fallback).
 - **Per-plot indicator colors** — `ActiveIndicator` gains a `colors` map (overrides
   keyed by `PlotConfig.id`); new `IndicatorController.setColors(name, colors)`
   re-styles live series in place without recomputing. The React `<IndicatorPicker>`
   shows a color swatch per plot for active indicators (minor — additive API).
+
+### Changed
+
+- **`IndicatorController` no longer re-maps the full bar history on every
+  tick** — the `IndicatorBar` conversion is cached and updated incrementally
+  on `onBar` (was O(history) allocations per tick; a measurable GC-pressure
+  source on large datasets).
+
+### Fixed
+
+- **RSI warmup matches TradingView** — the first price change is now measured
+  between bars 0 and 1 (`ta.change` semantics) instead of prepending a
+  synthetic zero change at bar 0. The first defined RSI lands on bar index
+  `length` (was `length - 1`, one bar early with a skewed Wilder seed).
 
 ## [0.1.0] — Unreleased
 

@@ -62,6 +62,30 @@ export interface IndicatorResult {
   markers?: MarkerDef[];
 }
 
+/**
+ * A per-plot streaming value: a plain number, or `{ value, color }` when the
+ * plot carries a per-point color (e.g. a signed histogram). `NaN` means
+ * "warmup / not defined yet" (the batch path's missing point).
+ */
+export type StreamValue = number | { value: number; color?: string };
+
+/**
+ * Incremental engine equivalent to an {@link IndicatorDef.calculate}: feeds on
+ * one bar at a time instead of the whole history, so a live tick costs
+ * O(indicator window) instead of O(history).
+ *
+ *  - `next(bar)` commits a CONFIRMED bar and returns the values for it;
+ *  - `peek(bar)` returns the values the in-progress bar would have if it
+ *    closed now — it never mutates state, so it is safe to call on every tick.
+ *
+ * Both return values keyed by {@link PlotConfig.id} and MUST equal what
+ * `calculate` would produce for the same bars.
+ */
+export interface StreamingIndicator {
+  next(bar: IndicatorBar): Record<string, StreamValue>;
+  peek(bar: IndicatorBar): Record<string, StreamValue>;
+}
+
 /** A registry entry: metadata + a pure `calculate`. This is the extension point. */
 export interface IndicatorDef {
   name: string;
@@ -69,6 +93,14 @@ export interface IndicatorDef {
   shortTitle: string;
   category: IndicatorCategory;
   calculate: (bars: IndicatorBar[], inputs?: Record<string, unknown>) => IndicatorResult;
+  /**
+   * Optional factory for a {@link StreamingIndicator} resolved against the
+   * same inputs as `calculate`. When present, `IndicatorController` uses it on
+   * live ticks (`onBar`) instead of recalculating over the full history; when
+   * absent, the controller falls back to the batch recompute. Toggling and
+   * full-data refreshes (`onData`) always go through `calculate`.
+   */
+  streaming?: (inputs?: Record<string, unknown>) => StreamingIndicator;
   defaultInputs: Record<string, unknown>;
   inputConfig: InputConfig[];
   plotConfig: PlotConfig[];
