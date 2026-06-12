@@ -32,6 +32,14 @@ import type {
   PlotPoint,
   StreamingIndicator,
 } from "./types";
+import {
+  resolveRenderWindow,
+  initialRenderStart,
+  nextRenderStart,
+  lowerBoundByTime,
+  type RenderWindowOptions,
+  type RenderWindowConfig,
+} from "./renderWindow";
 
 const HISTOGRAM_STYLES = new Set(["histogram", "columns"]);
 
@@ -48,6 +56,12 @@ interface Managed {
    * O(history).
    */
   stream: { inst: StreamingIndicator; pendingTime: number } | null;
+  /**
+   * Full computed points per plot, kept current as bars close — the backfill
+   * source when the render window extends left. Only populated for windowed
+   * streaming indicators; `null` means the series holds the full data.
+   */
+  plotAll: Map<string, PlotPoint[]> | null;
 }
 
 export class IndicatorController implements ChartPlugin {
@@ -63,18 +77,27 @@ export class IndicatorController implements ChartPlugin {
   private markers = new Map<string, SeriesMarker<Time>[]>();
   private markersPlugin: ISeriesMarkersPluginApi<Time> | null = null;
   private onChange?: (names: string[]) => void;
+  private readonly window: RenderWindowConfig | null;
+  private renderStart = -Infinity;
+  private offRange: (() => void) | null = null;
 
   constructor(
     private readonly registry: IndicatorRegistry,
-    opts: { onChange?: (names: string[]) => void } = {},
+    opts: { onChange?: (names: string[]) => void; renderWindow?: RenderWindowOptions | false } = {},
   ) {
     this.onChange = opts.onChange;
+    this.window = resolveRenderWindow(opts.renderWindow);
   }
 
   init(ctx: PluginContext): void {
     this.chart = ctx.chart;
     this.candleSeries = ctx.series;
     this.getBars = ctx.getBars;
+    if (this.window) {
+      this.offRange = ctx.bus.on("rangeChange", (r) => {
+        if (r) this.extendWindow(r.from / 1000);
+      });
+    }
   }
 
   onData(): void {
@@ -143,7 +166,22 @@ export class IndicatorController implements ChartPlugin {
     if (ib.time > stream.pendingTime) {
       // the previously pending bar closed — commit it exactly once
       const prev = bars[bars.length - 2];
-      if (prev && prev.time === stream.pendingTime) stream.inst.next(prev);
+      if (prev && prev.time === stream.pendingTime) {
+        const committed = stream.inst.next(prev);
+        // keep the backfill source current as bars close
+        if (m.plotAll) {
+          for (const [plotId, v] of Object.entries(committed)) {
+            const value = typeof v === "number" ? v : v.value;
+            if (Number.isNaN(value)) continue;
+            const all = m.plotAll.get(plotId);
+            if (!all) continue;
+            const point: PlotPoint = { time: prev.time, value, color: typeof v === "object" ? v.color : undefined };
+            const last = all[all.length - 1];
+            if (last && last.time === prev.time) all[all.length - 1] = point;
+            else if (!last || prev.time > last.time) all.push(point);
+          }
+        }
+      }
       stream.pendingTime = ib.time;
     }
     const vals = stream.inst.peek(ib);
@@ -164,6 +202,8 @@ export class IndicatorController implements ChartPlugin {
   }
 
   destroy(): void {
+    this.offRange?.();
+    this.offRange = null;
     if (this.chart) {
       for (const m of this.managed.values()) {
         for (const s of m.plotSeries.values()) {
@@ -277,6 +317,7 @@ export class IndicatorController implements ChartPlugin {
 
     if (!this.markersPlugin) this.markersPlugin = createSeriesMarkers(candle);
     const bars = this.bars();
+    this.renderStart = this.window ? initialRenderStart(bars, this.window) : -Infinity;
 
     // 1. Remove deactivated.
     for (const [name, m] of this.managed) {
@@ -317,6 +358,7 @@ export class IndicatorController implements ChartPlugin {
         continue;
       }
       m.stream = this.makeStream(def, act, bars);
+      m.plotAll = this.window && m.stream ? new Map() : null;
       if (m.isPattern) {
         this.markers.set(name, buildMarkers(res));
         this.flushMarkers();
@@ -329,13 +371,14 @@ export class IndicatorController implements ChartPlugin {
         const color = resolveColor(act.colors, plotId, pc?.color);
         const isHist = HISTOGRAM_STYLES.has(pc?.style ?? "");
         const filtered = filterValid(raw);
+        const visible = this.windowSlice(m, plotId, filtered);
         if (isHist) {
           (s as ISeriesApi<"Histogram">).setData(
-            filtered.map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })),
+            visible.map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })),
           );
         } else {
           (s as ISeriesApi<"Line">).applyOptions({ color });
-          (s as ISeriesApi<"Line">).setData(filtered.map((d) => ({ time: d.time as Time, value: d.value })));
+          (s as ISeriesApi<"Line">).setData(visible.map((d) => ({ time: d.time as Time, value: d.value })));
         }
       }
     }
@@ -355,7 +398,7 @@ export class IndicatorController implements ChartPlugin {
       if (def.category === "pattern") {
         this.markers.set(name, buildMarkers(res));
         this.flushMarkers();
-        this.managed.set(name, { plotSeries: new Map(), pane: null, isPattern: true, stream: null });
+        this.managed.set(name, { plotSeries: new Map(), pane: null, isPattern: true, stream: null, plotAll: null });
         continue;
       }
 
@@ -369,20 +412,28 @@ export class IndicatorController implements ChartPlugin {
         paneIndex = chart.panes().length - 1;
       }
 
-      const plotSeries = new Map<string, ISeriesApi<"Line" | "Histogram">>();
+      const stream = this.makeStream(def, act, bars);
+      const managed: Managed = {
+        plotSeries: new Map(),
+        pane,
+        isPattern: false,
+        stream,
+        plotAll: this.window && stream ? new Map() : null,
+      };
+      const plotSeries = managed.plotSeries;
       for (const [plotId, raw] of Object.entries(res.plots)) {
         const pc = def.plotConfig.find((c) => c.id === plotId);
         const color = resolveColor(act.colors, plotId, pc?.color);
         const lineWidth = clampWidth(pc?.lineWidth ?? 1);
         const isHist = HISTOGRAM_STYLES.has(pc?.style ?? "");
-        const filtered = filterValid(raw);
+        const visible = this.windowSlice(managed, plotId, filterValid(raw));
         if (isHist) {
           const s = chart.addSeries(HistogramSeries, { color, priceLineVisible: false, lastValueVisible: false }, paneIndex);
-          s.setData(filtered.map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })));
+          s.setData(visible.map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })));
           plotSeries.set(plotId, s);
         } else {
           const s = chart.addSeries(LineSeries, { color, lineWidth, priceLineVisible: false, lastValueVisible: false }, paneIndex);
-          s.setData(filtered.map((d) => ({ time: d.time as Time, value: d.value })));
+          s.setData(visible.map((d) => ({ time: d.time as Time, value: d.value })));
           plotSeries.set(plotId, s);
         }
       }
@@ -409,7 +460,52 @@ export class IndicatorController implements ChartPlugin {
           }
         }
       }
-      this.managed.set(name, { plotSeries, pane, isPattern: false, stream: this.makeStream(def, act, bars) });
+      this.managed.set(name, managed);
+    }
+  }
+
+  /**
+   * For windowed streaming indicators: remember the full computed points (the
+   * backfill source) and return only the rendered tail. Pass-through for
+   * everything else.
+   */
+  private windowSlice(m: Managed, plotId: string, filtered: PlotPoint[]): PlotPoint[] {
+    if (!m.plotAll) return filtered;
+    m.plotAll.set(plotId, filtered);
+    if (this.renderStart === -Infinity) return filtered;
+    return filtered.slice(lowerBoundByTime(filtered, this.renderStart));
+  }
+
+  /**
+   * Extend the render window left when the visible edge approaches it
+   * (subscribed to `rangeChange`). The window only grows; `setData` re-applies
+   * the longer slice from the stored full points.
+   */
+  private extendWindow(visibleFromSec: number): void {
+    const cfg = this.window;
+    if (!cfg || this.renderStart === -Infinity || this.managed.size === 0) return;
+    const newStart = nextRenderStart(this.bars(), this.renderStart, visibleFromSec, cfg);
+    if (newStart === null) return;
+    this.renderStart = newStart;
+    for (const [name, m] of this.managed) {
+      if (!m.plotAll) continue;
+      const def = this.registry.get(name);
+      const act = this.active.get(name);
+      if (!def || !act) continue;
+      for (const [plotId, all] of m.plotAll) {
+        const s = m.plotSeries.get(plotId);
+        if (!s) continue;
+        const pc = def.plotConfig.find((c) => c.id === plotId);
+        const color = resolveColor(act.colors, plotId, pc?.color);
+        const visible = newStart === -Infinity ? all : all.slice(lowerBoundByTime(all, newStart));
+        if (HISTOGRAM_STYLES.has(pc?.style ?? "")) {
+          (s as ISeriesApi<"Histogram">).setData(
+            visible.map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })),
+          );
+        } else {
+          (s as ISeriesApi<"Line">).setData(visible.map((d) => ({ time: d.time as Time, value: d.value })));
+        }
+      }
     }
   }
 
@@ -458,8 +554,9 @@ export class IndicatorController implements ChartPlugin {
       if (HISTOGRAM_STYLES.has(pc?.style ?? "")) {
         const raw = res.plots[plotId];
         if (!raw) continue;
+        const visible = this.windowSlice(m, plotId, filterValid(raw));
         (s as ISeriesApi<"Histogram">).setData(
-          filterValid(raw).map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })),
+          visible.map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })),
         );
       } else {
         (s as ISeriesApi<"Line">).applyOptions({ color });

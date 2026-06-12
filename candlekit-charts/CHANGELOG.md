@@ -8,6 +8,17 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Windowed indicator rendering** — on large histories, streaming-capable
+  indicators render only the most recent `sizeBars` points (default 5000) and
+  backfill older points automatically when the user pans toward the rendered
+  edge (backfill triggers `guardBars` before the edge becomes visible, so
+  there is no visible gap; the window never shrinks during a session).
+  Motivation: lightweight-charts' `series.update()` cost scales with the
+  TOTAL series point count — measured +6.5 ms per live tick with 9 plot
+  series × 50k points; windowing returns ticks to the empty-chart floor
+  (~8.8 ms → ~2.9 ms per tick in the 50k-bar stress scenario). Configure or
+  disable via `new IndicatorController(registry, { renderWindow })`
+  (`false` opts out; minor — additive API).
 - **Streaming indicator engines** — `IndicatorDef` gains an optional
   `streaming(inputs)` factory returning a `StreamingIndicator`
   (`next(bar)` commits a confirmed bar, `peek(bar)` previews the in-progress
