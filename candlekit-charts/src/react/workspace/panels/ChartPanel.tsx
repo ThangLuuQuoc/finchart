@@ -367,6 +367,7 @@ function ChartPanelInner({
             indicators · trade date · replay status. Mirrors the host chart pane
             header, which carries the same controls in one mono pill. */}
         <div style={S.controlPill}>
+          <span aria-hidden style={S.pillBackdrop} />
           <select
             value={symbol}
             onChange={(e) => updateConfig({ symbol: e.target.value })}
@@ -446,11 +447,22 @@ const S: Record<string, CSSProperties> = {
     fontSize: 11,
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
     color: "var(--app-fg)",
-    background: "color-mix(in srgb, var(--app-panel) 80%, transparent)",
     border: "1px solid color-mix(in srgb, var(--app-border) 60%, transparent)",
     borderRadius: 6,
-    backdropFilter: "blur(6px)",
     boxShadow: "0 1px 2px rgba(0,0,0,0.18)",
+  },
+  // The pill's frosted background lives on its own layer: a backdrop-filter on
+  // the pill itself would make it the containing block for the docked
+  // IndicatorModal's `position: fixed` overlay, squashing the modal to the
+  // pill's 26px-high box.
+  pillBackdrop: {
+    position: "absolute",
+    inset: 0,
+    zIndex: -1,
+    borderRadius: "inherit",
+    pointerEvents: "none",
+    background: "color-mix(in srgb, var(--app-panel) 80%, transparent)",
+    backdropFilter: "blur(6px)",
   },
   pillSelect: {
     height: 20,
