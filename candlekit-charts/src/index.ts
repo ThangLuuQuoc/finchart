@@ -45,6 +45,8 @@ export * from "./measurement/types";
 export * from "./measurement/RulerPrimitive";
 export * from "./measurement/ChartCoordinateUtils";
 export * from "./measurement/MeasurementController";
+export * from "./measurement/PointMarkerPrimitive";
+export * from "./measurement/PointMarkerController";
 
 // ── Indicators (registry + controller + built-in catalog; pluggable) ────────────
 export * from "./indicators/types";
@@ -53,6 +55,10 @@ export * from "./indicators/builtin";
 export * from "./indicators/streaming";
 export * from "./indicators/renderWindow";
 export * from "./indicators/IndicatorController";
+// Off-main-thread batch compute (B1). The worker module itself is imported by
+// the consumer via their bundler's worker URL; here we export the client API.
+export { mainThreadCompute, createWorkerCompute, type BatchCompute, type WorkerLike, type WorkerComputeOptions } from "./indicators/compute/batchCompute";
+export { builtinIndicatorNames, type ComputeRequest, type ComputeResponse } from "./indicators/compute/indicatorWorker";
 
 // ── Replay ──────────────────────────────────────────────────────────────────────
 export * from "./replay/types";

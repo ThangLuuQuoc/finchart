@@ -9,7 +9,8 @@
  */
 
 import { IndicatorRegistry } from "./registry";
-import type { IndicatorBar, IndicatorDef, PlotPoint } from "./types";
+import type { IndicatorBar, IndicatorDef, InputConfig, PlotPoint } from "./types";
+import { resolveSource, SOURCE_OPTIONS } from "./source";
 import {
   streamingSma,
   streamingEma,
@@ -108,7 +109,10 @@ function toPoints(bars: IndicatorBar[], series: Series): PlotPoint[] {
   return pts;
 }
 
-const closes = (b: IndicatorBar[]) => b.map((x) => x.close);
+/** Resolve the configured `source` input and map bars → its values. */
+const srcVals = (bars: IndicatorBar[], inputs: Record<string, unknown> | undefined) => bars.map(resolveSource(inputs?.source));
+/** The `source` input row shared by price-based indicators. */
+const SOURCE_INPUT: InputConfig = { name: "source", type: "source", defval: "close", title: "Source", options: SOURCE_OPTIONS };
 const int = (inputs: Record<string, unknown> | undefined, key: string, def: number) => {
   const v = Number(inputs?.[key]);
   return Number.isFinite(v) && v > 0 ? Math.floor(v) : def;
@@ -125,12 +129,12 @@ const SMA: IndicatorDef = {
   title: "Simple Moving Average",
   shortTitle: "SMA",
   category: "overlay",
-  defaultInputs: { length: 20 },
-  inputConfig: [{ name: "length", type: "int", defval: 20, title: "Length" }],
+  defaultInputs: { length: 20, source: "close" },
+  inputConfig: [{ name: "length", type: "int", defval: 20, title: "Length" }, SOURCE_INPUT],
   plotConfig: [{ id: "sma", title: "SMA", color: "#2962ff", lineWidth: 2 }],
   hlineConfig: [],
-  calculate: (bars, inputs) => ({ plots: { sma: toPoints(bars, smaSeries(closes(bars), int(inputs, "length", 20))) } }),
-  streaming: (inputs) => streamingSma(int(inputs, "length", 20)),
+  calculate: (bars, inputs) => ({ plots: { sma: toPoints(bars, smaSeries(srcVals(bars, inputs), int(inputs, "length", 20))) } }),
+  streaming: (inputs) => streamingSma(int(inputs, "length", 20), resolveSource(inputs?.source)),
 };
 
 const EMA: IndicatorDef = {
@@ -138,12 +142,12 @@ const EMA: IndicatorDef = {
   title: "Exponential Moving Average",
   shortTitle: "EMA",
   category: "overlay",
-  defaultInputs: { length: 20 },
-  inputConfig: [{ name: "length", type: "int", defval: 20, title: "Length" }],
+  defaultInputs: { length: 20, source: "close" },
+  inputConfig: [{ name: "length", type: "int", defval: 20, title: "Length" }, SOURCE_INPUT],
   plotConfig: [{ id: "ema", title: "EMA", color: "#ff9800", lineWidth: 2 }],
   hlineConfig: [],
-  calculate: (bars, inputs) => ({ plots: { ema: toPoints(bars, emaSeries(closes(bars), int(inputs, "length", 20))) } }),
-  streaming: (inputs) => streamingEma(int(inputs, "length", 20)),
+  calculate: (bars, inputs) => ({ plots: { ema: toPoints(bars, emaSeries(srcVals(bars, inputs), int(inputs, "length", 20))) } }),
+  streaming: (inputs) => streamingEma(int(inputs, "length", 20), resolveSource(inputs?.source)),
 };
 
 const WMA: IndicatorDef = {
@@ -151,12 +155,12 @@ const WMA: IndicatorDef = {
   title: "Weighted Moving Average",
   shortTitle: "WMA",
   category: "overlay",
-  defaultInputs: { length: 20 },
-  inputConfig: [{ name: "length", type: "int", defval: 20, title: "Length" }],
+  defaultInputs: { length: 20, source: "close" },
+  inputConfig: [{ name: "length", type: "int", defval: 20, title: "Length" }, SOURCE_INPUT],
   plotConfig: [{ id: "wma", title: "WMA", color: "#26a69a", lineWidth: 2 }],
   hlineConfig: [],
-  calculate: (bars, inputs) => ({ plots: { wma: toPoints(bars, wmaSeries(closes(bars), int(inputs, "length", 20))) } }),
-  streaming: (inputs) => streamingWma(int(inputs, "length", 20)),
+  calculate: (bars, inputs) => ({ plots: { wma: toPoints(bars, wmaSeries(srcVals(bars, inputs), int(inputs, "length", 20))) } }),
+  streaming: (inputs) => streamingWma(int(inputs, "length", 20), resolveSource(inputs?.source)),
 };
 
 const VWAP: IndicatorDef = {
@@ -187,10 +191,11 @@ const Bollinger: IndicatorDef = {
   title: "Bollinger Bands",
   shortTitle: "BB",
   category: "overlay",
-  defaultInputs: { length: 20, mult: 2 },
+  defaultInputs: { length: 20, mult: 2, source: "close" },
   inputConfig: [
     { name: "length", type: "int", defval: 20, title: "Length" },
     { name: "mult", type: "float", defval: 2, title: "StdDev" },
+    SOURCE_INPUT,
   ],
   plotConfig: [
     { id: "upper", title: "Upper", color: "#787b86", lineWidth: 1 },
@@ -201,7 +206,7 @@ const Bollinger: IndicatorDef = {
   calculate: (bars, inputs) => {
     const len = int(inputs, "length", 20);
     const mult = num(inputs, "mult", 2);
-    const c = closes(bars);
+    const c = srcVals(bars, inputs);
     const basis = smaSeries(c, len);
     const sd = stdevSeries(c, len);
     const upper: Series = basis.map((b, i) => (b != null && sd[i] != null ? b + mult * (sd[i] as number) : null));
@@ -214,7 +219,7 @@ const Bollinger: IndicatorDef = {
       },
     };
   },
-  streaming: (inputs) => streamingBollinger(int(inputs, "length", 20), num(inputs, "mult", 2)),
+  streaming: (inputs) => streamingBollinger(int(inputs, "length", 20), num(inputs, "mult", 2), resolveSource(inputs?.source)),
 };
 
 const RSI: IndicatorDef = {
@@ -222,8 +227,8 @@ const RSI: IndicatorDef = {
   title: "Relative Strength Index",
   shortTitle: "RSI",
   category: "oscillator",
-  defaultInputs: { length: 14 },
-  inputConfig: [{ name: "length", type: "int", defval: 14, title: "Length" }],
+  defaultInputs: { length: 14, source: "close" },
+  inputConfig: [{ name: "length", type: "int", defval: 14, title: "Length" }, SOURCE_INPUT],
   plotConfig: [{ id: "rsi", title: "RSI", color: "#7e57c2", lineWidth: 2 }],
   hlineConfig: [
     { price: 70, color: "#787b86", linestyle: "dashed", title: "70" },
@@ -231,7 +236,7 @@ const RSI: IndicatorDef = {
   ],
   calculate: (bars, inputs) => {
     const len = int(inputs, "length", 14);
-    const c = closes(bars);
+    const c = srcVals(bars, inputs);
     // TradingView semantics: the first change is bar0→bar1 (`ta.change` is na
     // on bar 0), so the smoothing windows hold `len` REAL changes and the
     // first defined RSI lands on bar index `len`. (Previously a synthetic 0
@@ -256,7 +261,7 @@ const RSI: IndicatorDef = {
     });
     return { plots: { rsi: toPoints(bars, rsi) } };
   },
-  streaming: (inputs) => streamingRsi(int(inputs, "length", 14)),
+  streaming: (inputs) => streamingRsi(int(inputs, "length", 14), resolveSource(inputs?.source)),
 };
 
 const MACD: IndicatorDef = {
@@ -264,11 +269,12 @@ const MACD: IndicatorDef = {
   title: "MACD",
   shortTitle: "MACD",
   category: "oscillator",
-  defaultInputs: { fast: 12, slow: 26, signal: 9 },
+  defaultInputs: { fast: 12, slow: 26, signal: 9, source: "close" },
   inputConfig: [
     { name: "fast", type: "int", defval: 12, title: "Fast" },
     { name: "slow", type: "int", defval: 26, title: "Slow" },
     { name: "signal", type: "int", defval: 9, title: "Signal" },
+    SOURCE_INPUT,
   ],
   plotConfig: [
     { id: "hist", title: "Histogram", color: "#26a69a", style: "histogram" },
@@ -280,7 +286,7 @@ const MACD: IndicatorDef = {
     const fast = int(inputs, "fast", 12);
     const slow = int(inputs, "slow", 26);
     const sig = int(inputs, "signal", 9);
-    const c = closes(bars);
+    const c = srcVals(bars, inputs);
     const ef = emaSeries(c, fast);
     const es = emaSeries(c, slow);
     const macd: Series = c.map((_, i) => (ef[i] != null && es[i] != null ? (ef[i] as number) - (es[i] as number) : null));
@@ -307,7 +313,7 @@ const MACD: IndicatorDef = {
     }
     return { plots: { hist: histPts, macd: toPoints(bars, macd), signal: toPoints(bars, signal) } };
   },
-  streaming: (inputs) => streamingMacd(int(inputs, "fast", 12), int(inputs, "slow", 26), int(inputs, "signal", 9)),
+  streaming: (inputs) => streamingMacd(int(inputs, "fast", 12), int(inputs, "slow", 26), int(inputs, "signal", 9), resolveSource(inputs?.source)),
 };
 
 const ATR: IndicatorDef = {

@@ -105,6 +105,25 @@ export interface IndicatorDef {
   inputConfig: InputConfig[];
   plotConfig: PlotConfig[];
   hlineConfig: HLineConfig[];
+  /**
+   * Optional provenance used by the indicator menu to group entries (built-in
+   * "Technicals", the TradingView catalog, or user-added Pine scripts). Absent
+   * is treated as "builtin". Purely cosmetic — no behavioural effect.
+   */
+  source?: "builtin" | "tv" | "pine";
+  /** Optional search keywords / badges (e.g. "pine", "mtf", "new"). */
+  tags?: string[];
+  /** Optional one-line description for tooltips. */
+  description?: string;
+}
+
+/** Per-plot style override (Style tab of the settings dialog). */
+export interface PlotStyle {
+  color?: string;
+  lineWidth?: number;
+  lineStyle?: "solid" | "dashed" | "dotted";
+  /** `false` hides the plot's series without removing the indicator. */
+  visible?: boolean;
 }
 
 /** An indicator the user has switched on, with its resolved params. */
@@ -114,6 +133,9 @@ export interface ActiveIndicator {
   /**
    * Per-plot color overrides keyed by {@link PlotConfig.id}. When a plot has no
    * entry here, rendering falls back to its `PlotConfig.color`, then grey.
+   * Kept for backwards-compatibility; `styles[id].color` takes precedence.
    */
   colors: Record<string, string>;
+  /** Per-plot richer style overrides (color/width/lineStyle/visibility). */
+  styles?: Record<string, PlotStyle>;
 }

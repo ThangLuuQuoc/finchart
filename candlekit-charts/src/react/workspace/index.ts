@@ -27,6 +27,9 @@ export { ReplayPanel, type ReplayPanelConfig, DEFAULT_REPLAY_CONFIG } from "./pa
 export {
   setWorkspaceIndicatorRegistry,
   getWorkspaceIndicatorRegistry,
+  setWorkspaceAddPineScript,
+  getWorkspaceAddPineScript,
+  type AddPineScriptHandler,
 } from "./panels/indicatorRegistry";
 export { WatchlistPanel, type WatchlistConfig } from "./panels/WatchlistPanel";
 export { IndicatorPanel, type IndicatorConfig } from "./panels/IndicatorPanel";

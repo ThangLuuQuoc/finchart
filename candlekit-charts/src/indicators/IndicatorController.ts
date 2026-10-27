@@ -26,10 +26,12 @@ import type { IndicatorRegistry } from "./registry";
 import type {
   ActiveIndicator,
   IndicatorBar,
+  IndicatorCategory,
   IndicatorDef,
   IndicatorResult,
   PlotConfig,
   PlotPoint,
+  PlotStyle,
   StreamingIndicator,
 } from "./types";
 import {
@@ -40,8 +42,28 @@ import {
   type RenderWindowOptions,
   type RenderWindowConfig,
 } from "./renderWindow";
+import type { BatchCompute } from "./compute/batchCompute";
 
 const HISTOGRAM_STYLES = new Set(["histogram", "columns"]);
+
+/** One plot in a {@link LegendEntry}. `series` lets a legend read live values. */
+export interface LegendPlot {
+  id: string;
+  title: string;
+  color: string;
+  visible: boolean;
+  series: ISeriesApi<"Line" | "Histogram"> | null;
+}
+
+/** A row of the on-chart legend (one active indicator). See {@link IndicatorController.legendModel}. */
+export interface LegendEntry {
+  name: string;
+  title: string;
+  shortTitle: string;
+  category: IndicatorCategory;
+  paramsLabel: string;
+  plots: LegendPlot[];
+}
 
 interface Managed {
   plotSeries: Map<string, ISeriesApi<"Line" | "Histogram">>;
@@ -77,16 +99,27 @@ export class IndicatorController implements ChartPlugin {
   private markers = new Map<string, SeriesMarker<Time>[]>();
   private markersPlugin: ISeriesMarkersPluginApi<Time> | null = null;
   private onChange?: (names: string[]) => void;
+  private listeners = new Set<(names: string[]) => void>();
   private readonly window: RenderWindowConfig | null;
   private renderStart = -Infinity;
   private offRange: (() => void) | null = null;
+  /**
+   * Optional off-main-thread batch backend (B1). When it's `async`, the
+   * full-history `calculate` pass runs through it (built-ins only; unsupported
+   * defs fall back to the main thread). Absent/sync → behaviour is identical to
+   * the historical synchronous path.
+   */
+  private readonly compute: BatchCompute | null;
+  /** Bumped per refresh so a slow worker result from a superseded refresh is dropped. */
+  private refreshEpoch = 0;
 
   constructor(
     private readonly registry: IndicatorRegistry,
-    opts: { onChange?: (names: string[]) => void; renderWindow?: RenderWindowOptions | false } = {},
+    opts: { onChange?: (names: string[]) => void; renderWindow?: RenderWindowOptions | false; compute?: BatchCompute } = {},
   ) {
     this.onChange = opts.onChange;
     this.window = resolveRenderWindow(opts.renderWindow);
+    this.compute = opts.compute ?? null;
   }
 
   init(ctx: PluginContext): void {
@@ -244,7 +277,7 @@ export class IndicatorController implements ChartPlugin {
     if (this.active.size === 0) return;
     this.active.clear();
     this.refresh();
-    this.onChange?.(this.activeNames());
+    this.emitChange();
   }
 
   /** Turn an indicator on (or update its params). Preserves color overrides. */
@@ -256,9 +289,10 @@ export class IndicatorController implements ChartPlugin {
       name,
       params: { ...def.defaultInputs, ...params },
       colors: prev?.colors ?? {},
+      styles: prev?.styles,
     });
     this.refresh();
-    this.onChange?.(this.activeNames());
+    this.emitChange();
   }
 
   /**
@@ -273,19 +307,141 @@ export class IndicatorController implements ChartPlugin {
     if (!act) return;
     this.active.set(name, { ...act, colors });
     this.applyColors(name);
-    this.onChange?.(this.activeNames());
+    this.emitChange();
+  }
+
+  /**
+   * Override a single plot's style (color / lineWidth / lineStyle / visibility).
+   * Applied in place via `applyOptions` — no recompute. Color is mirrored into
+   * `colors` so {@link applyColors} and histogram re-render stay consistent.
+   * No-op if the indicator is not active.
+   */
+  setStyle(name: string, plotId: string, patch: PlotStyle): void {
+    const act = this.active.get(name);
+    if (!act) return;
+    const styles = { ...(act.styles ?? {}) };
+    styles[plotId] = { ...(styles[plotId] ?? {}), ...patch };
+    const colors = patch.color !== undefined ? { ...act.colors, [plotId]: patch.color } : act.colors;
+    this.active.set(name, { ...act, colors, styles });
+    this.applyStyle(name, plotId);
+    this.emitChange();
+  }
+
+  private applyStyle(name: string, plotId: string): void {
+    const managed = this.managed.get(name);
+    const act = this.active.get(name);
+    if (!managed || !act) return;
+    const s = managed.plotSeries.get(plotId);
+    if (!s) return;
+    const st = act.styles?.[plotId];
+    if (!st) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const opts: any = {};
+    if (st.color !== undefined) opts.color = st.color;
+    if (st.lineWidth !== undefined) opts.lineWidth = clampWidth(st.lineWidth);
+    if (st.lineStyle !== undefined) opts.lineStyle = toLineStyle(st.lineStyle);
+    if (st.visible !== undefined) opts.visible = st.visible;
+    try { s.applyOptions(opts); } catch { /* */ }
   }
 
   /** Turn an indicator off. */
   remove(name: string): void {
     this.active.delete(name);
     this.refresh();
-    this.onChange?.(this.activeNames());
+    this.emitChange();
   }
 
   toggle(name: string): void {
     if (this.active.has(name)) this.remove(name);
     else this.add(name);
+  }
+
+  /**
+   * Serialize the active set — `{ name, params, colors, styles }` per entry,
+   * deep-copied + JSON-able — for persisting an indicator setup. Restore with
+   * {@link loadState}. Output is a pure function of this snapshot.
+   */
+  toState(): ActiveIndicator[] {
+    return [...this.active.values()].map((a) => ({
+      name: a.name,
+      params: { ...a.params },
+      colors: { ...a.colors },
+      ...(a.styles
+        ? { styles: Object.fromEntries(Object.entries(a.styles).map(([k, v]) => [k, { ...v }])) }
+        : {}),
+    }));
+  }
+
+  /**
+   * Replace the active set with a snapshot from {@link toState}. Unknown
+   * indicator names (not in the registry) are skipped; params are re-resolved
+   * against the def's defaults so a stale snapshot still yields valid inputs.
+   * Triggers a single refresh.
+   */
+  loadState(state: readonly ActiveIndicator[]): void {
+    this.active.clear();
+    for (const a of state) {
+      const def = this.registry.get(a.name);
+      if (!def) continue;
+      this.active.set(a.name, {
+        name: a.name,
+        params: { ...def.defaultInputs, ...a.params },
+        colors: { ...(a.colors ?? {}) },
+        styles: a.styles ? { ...a.styles } : undefined,
+      });
+    }
+    this.refresh();
+    this.emitChange();
+  }
+
+  /** Subscribe to active-set changes (multi-subscriber; legend, panels, …). */
+  subscribe(listener: (names: string[]) => void): () => void {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
+
+  private emitChange(): void {
+    const names = this.activeNames();
+    this.onChange?.(names);
+    for (const l of this.listeners) l(names);
+  }
+
+  /**
+   * Snapshot for an on-chart legend: one entry per active indicator with its
+   * label, a compact params string, and per-plot {color, visible, series}. The
+   * series ref lets a legend read the live value from a crosshair param's
+   * `seriesData` map.
+   */
+  legendModel(): LegendEntry[] {
+    const out: LegendEntry[] = [];
+    for (const name of this.active.keys()) {
+      const def = this.registry.get(name);
+      const act = this.active.get(name);
+      if (!def || !act) continue;
+      const managed = this.managed.get(name);
+      const numeric = def.inputConfig
+        .filter((c) => c.type === "int" || c.type === "float")
+        .map((c) => act.params[c.name])
+        .filter((v) => v !== undefined);
+      out.push({
+        name,
+        title: def.title,
+        shortTitle: def.shortTitle,
+        category: def.category,
+        paramsLabel: numeric.join(" "),
+        plots: def.plotConfig.map((pc) => {
+          const st = act.styles?.[pc.id];
+          return {
+            id: pc.id,
+            title: pc.title ?? pc.id,
+            color: st?.color ?? act.colors[pc.id] ?? pc.color ?? "#888",
+            visible: st?.visible ?? true,
+            series: managed?.plotSeries.get(pc.id) ?? null,
+          };
+        }),
+      });
+    }
+    return out;
   }
 
   // ── Lifecycle reconciliation ─────────────────────────────────────────────────
@@ -310,7 +466,60 @@ export class IndicatorController implements ChartPlugin {
     return cached;
   }
 
+  /**
+   * Dispatch the batch recompute. Default (no backend / sync backend) runs the
+   * historical synchronous path unchanged. An async backend pre-computes
+   * supported defs off-thread, then applies — guarded by {@link refreshEpoch}
+   * so a stale result never clobbers a newer refresh.
+   */
   private refresh(): void {
+    const backend = this.compute;
+    if (backend && backend.async) {
+      void this.refreshWithBackend(backend);
+      return;
+    }
+    this.runRefresh((_name, def, act, bars) => {
+      try {
+        return def.calculate(bars, act.params);
+      } catch {
+        return null;
+      }
+    });
+  }
+
+  /** Off-main-thread path: compute supported defs via the backend, then apply. */
+  private async refreshWithBackend(backend: BatchCompute): Promise<void> {
+    const epoch = ++this.refreshEpoch;
+    const bars = this.bars();
+    const resMap = new Map<string, IndicatorResult>();
+    await Promise.all(
+      [...this.active].map(async ([name, act]) => {
+        const def = this.registry.get(name);
+        if (!def) return;
+        try {
+          resMap.set(
+            name,
+            backend.supports(name)
+              ? await backend.calculate(name, bars, act.params)
+              : def.calculate(bars, act.params),
+          );
+        } catch {
+          /* unsupported/failed → left unset → skipped in the build below */
+        }
+      }),
+    );
+    if (epoch !== this.refreshEpoch) return; // a newer refresh superseded this one
+    this.runRefresh((name) => resMap.get(name) ?? null);
+  }
+
+  /**
+   * Reconcile chart series with active indicators. `getResult` supplies each
+   * indicator's computed series — synchronously from the registry, or from a
+   * pre-awaited worker map (see {@link refreshWithBackend}).
+   */
+  private runRefresh(
+    getResult: (name: string, def: IndicatorDef, act: ActiveIndicator, bars: IndicatorBar[]) => IndicatorResult | null,
+  ): void {
     const chart = this.chart;
     const candle = this.candleSeries;
     if (!chart || !candle) return;
@@ -351,12 +560,8 @@ export class IndicatorController implements ChartPlugin {
       const def = this.registry.get(name);
       const act = this.active.get(name);
       if (!def || !act) continue;
-      let res: IndicatorResult;
-      try {
-        res = def.calculate(bars, act.params);
-      } catch {
-        continue;
-      }
+      const res = getResult(name, def, act, bars);
+      if (!res) continue;
       m.stream = this.makeStream(def, act, bars);
       m.plotAll = this.window && m.stream ? new Map() : null;
       if (m.isPattern) {
@@ -388,12 +593,8 @@ export class IndicatorController implements ChartPlugin {
       if (this.managed.has(name)) continue;
       const def = this.registry.get(name);
       if (!def) continue;
-      let res: IndicatorResult;
-      try {
-        res = def.calculate(bars, act.params);
-      } catch {
-        continue;
-      }
+      const res = getResult(name, def, act, bars);
+      if (!res) continue;
 
       if (def.category === "pattern") {
         this.markers.set(name, buildMarkers(res));
@@ -423,16 +624,19 @@ export class IndicatorController implements ChartPlugin {
       const plotSeries = managed.plotSeries;
       for (const [plotId, raw] of Object.entries(res.plots)) {
         const pc = def.plotConfig.find((c) => c.id === plotId);
-        const color = resolveColor(act.colors, plotId, pc?.color);
-        const lineWidth = clampWidth(pc?.lineWidth ?? 1);
+        const st = act.styles?.[plotId];
+        const color = st?.color ?? resolveColor(act.colors, plotId, pc?.color);
+        const lineWidth = clampWidth(st?.lineWidth ?? pc?.lineWidth ?? 1);
         const isHist = HISTOGRAM_STYLES.has(pc?.style ?? "");
+        const seriesVisible = st?.visible ?? true;
         const visible = this.windowSlice(managed, plotId, filterValid(raw));
         if (isHist) {
-          const s = chart.addSeries(HistogramSeries, { color, priceLineVisible: false, lastValueVisible: false }, paneIndex);
+          const s = chart.addSeries(HistogramSeries, { color, priceLineVisible: false, lastValueVisible: false, visible: seriesVisible }, paneIndex);
           s.setData(visible.map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })));
           plotSeries.set(plotId, s);
         } else {
-          const s = chart.addSeries(LineSeries, { color, lineWidth, priceLineVisible: false, lastValueVisible: false }, paneIndex);
+          const lineStyle = st?.lineStyle ? toLineStyle(st.lineStyle) : LineStyle.Solid;
+          const s = chart.addSeries(LineSeries, { color, lineWidth, lineStyle, priceLineVisible: false, lastValueVisible: false, visible: seriesVisible }, paneIndex);
           s.setData(visible.map((d) => ({ time: d.time as Time, value: d.value })));
           plotSeries.set(plotId, s);
         }
@@ -589,6 +793,10 @@ function resolveColor(colors: Record<string, string> | undefined, plotId: string
 
 function clampWidth(w: number): 1 | 2 | 3 | 4 {
   return Math.max(1, Math.min(4, Math.round(w))) as 1 | 2 | 3 | 4;
+}
+
+function toLineStyle(s: "solid" | "dashed" | "dotted"): LineStyle {
+  return s === "dashed" ? LineStyle.Dashed : s === "dotted" ? LineStyle.Dotted : LineStyle.Solid;
 }
 
 function mapShape(shape: string): "arrowUp" | "arrowDown" | "circle" | "square" {

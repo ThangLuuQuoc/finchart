@@ -53,6 +53,48 @@ describe("built-in indicator registry", () => {
     expect(res.plots.basis[n].value).toBeGreaterThanOrEqual(res.plots.lower[n].value);
   });
 
+  // Bars with open/high/low/close all distinct → source choice changes output.
+  const ohlc: IndicatorBar[] = Array.from({ length: 80 }, (_, i) => {
+    const c = 100 + 5 * Math.sin(i / 6) + i * 0.1;
+    return { time: 1_700_000_000 + i * 60, open: c - 2, high: c + 3, low: c - 4, close: c, volume: 100 + i };
+  });
+
+  it("SMA honors the `source` input (close vs hl2 vs open)", () => {
+    const sma = createBuiltinRegistry().get("SMA")!;
+    const last = (src: string) => {
+      const pts = sma.calculate(ohlc, { length: 10, source: src }).plots.sma;
+      return pts[pts.length - 1].value;
+    };
+    const onClose = last("close");
+    const onHl2 = last("hl2");
+    const onOpen = last("open");
+    expect(onClose).not.toBeCloseTo(onHl2, 6);
+    expect(onClose).not.toBeCloseTo(onOpen, 6);
+    // hl2 SMA == mean of last-10 (high+low)/2 by hand
+    const hl2 = ohlc.slice(-10).map((b) => (b.high + b.low) / 2);
+    expect(onHl2).toBeCloseTo(hl2.reduce((s, v) => s + v, 0) / 10, 6);
+  });
+
+  it("source input exposed as type 'source' on price-based indicators", () => {
+    const reg = createBuiltinRegistry();
+    for (const name of ["SMA", "EMA", "WMA", "Bollinger", "RSI", "MACD"]) {
+      const cfg = reg.get(name)!.inputConfig.find((c) => c.name === "source");
+      expect(cfg?.type, name).toBe("source");
+    }
+  });
+
+  it("streaming honors `source` and matches batch (EMA on open)", () => {
+    const ema = createBuiltinRegistry().get("EMA")!;
+    const batch = ema.calculate(ohlc, { length: 12, source: "open" }).plots.ema;
+    const stream = ema.streaming!({ length: 12, source: "open" });
+    let lastStream = NaN;
+    for (const b of ohlc) {
+      const v = stream.next(b).ema as number;
+      if (Number.isFinite(v)) lastStream = v;
+    }
+    expect(lastStream).toBeCloseTo(batch[batch.length - 1].value, 6);
+  });
+
   it("every indicator computes finite values", () => {
     const reg = createBuiltinRegistry();
     for (const def of reg.list()) {

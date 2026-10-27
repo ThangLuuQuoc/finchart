@@ -19,6 +19,10 @@
  */
 
 import type { IndicatorBar, StreamingIndicator, StreamValue } from "./types";
+import type { SourceExtractor } from "./source";
+
+/** Default price source for engines that take one. */
+const CLOSE: SourceExtractor = (b) => b.close;
 
 // ── window / smoothing primitives ──────────────────────────────────────────────
 
@@ -175,34 +179,35 @@ function hiLoOf(win: Win, newest: number): { hi: number; lo: number } {
 
 // ── streaming engines (plot ids match the builtin defs exactly) ───────────────
 
-export function streamingSma(len: number): StreamingIndicator {
+export function streamingSma(len: number, src: SourceExtractor = CLOSE): StreamingIndicator {
   const s = new Sma(len);
   return {
-    next: (b) => ({ sma: s.next(b.close) }),
-    peek: (b) => ({ sma: s.peek(b.close) }),
+    next: (b) => ({ sma: s.next(src(b)) }),
+    peek: (b) => ({ sma: s.peek(src(b)) }),
   };
 }
 
-export function streamingEma(len: number): StreamingIndicator {
+export function streamingEma(len: number, src: SourceExtractor = CLOSE): StreamingIndicator {
   const e = new Ema(len);
   return {
-    next: (b) => ({ ema: e.next(b.close) }),
-    peek: (b) => ({ ema: e.peek(b.close) }),
+    next: (b) => ({ ema: e.next(src(b)) }),
+    peek: (b) => ({ ema: e.peek(src(b)) }),
   };
 }
 
-export function streamingWma(len: number): StreamingIndicator {
+export function streamingWma(len: number, src: SourceExtractor = CLOSE): StreamingIndicator {
   const w = new Win(len);
   return {
     next(b) {
-      // compute with `close` as the newest BEFORE committing it — pushing
-      // first would count it twice and drop the oldest window value
-      const v = w.count + 1 >= w.len ? wmaOf(w, b.close) : NaN;
-      w.push(b.close);
+      // compute with the source value as the newest BEFORE committing it —
+      // pushing first would count it twice and drop the oldest window value
+      const x = src(b);
+      const v = w.count + 1 >= w.len ? wmaOf(w, x) : NaN;
+      w.push(x);
       return { wma: v };
     },
     peek(b) {
-      return { wma: w.count + 1 >= w.len ? wmaOf(w, b.close) : NaN };
+      return { wma: w.count + 1 >= w.len ? wmaOf(w, src(b)) : NaN };
     },
   };
 }
@@ -228,7 +233,7 @@ export function streamingVwap(): StreamingIndicator {
   };
 }
 
-export function streamingBollinger(len: number, mult: number): StreamingIndicator {
+export function streamingBollinger(len: number, mult: number, src: SourceExtractor = CLOSE): StreamingIndicator {
   const sma = new Sma(len);
   const win = new Win(len);
   const bands = (basis: number, dev: number) =>
@@ -237,14 +242,16 @@ export function streamingBollinger(len: number, mult: number): StreamingIndicato
       : { upper: basis + mult * dev, basis, lower: basis - mult * dev };
   return {
     next(b) {
-      const basis = sma.next(b.close);
-      const dev = win.count + 1 >= win.len ? stdevOf(win, b.close) : NaN;
-      win.push(b.close);
+      const x = src(b);
+      const basis = sma.next(x);
+      const dev = win.count + 1 >= win.len ? stdevOf(win, x) : NaN;
+      win.push(x);
       return bands(basis, dev);
     },
     peek(b) {
-      const basis = sma.peek(b.close);
-      return bands(basis, win.count + 1 >= win.len ? stdevOf(win, b.close) : NaN);
+      const x = src(b);
+      const basis = sma.peek(x);
+      return bands(basis, win.count + 1 >= win.len ? stdevOf(win, x) : NaN);
     },
   };
 }
@@ -254,7 +261,7 @@ export function streamingBollinger(len: number, mult: number): StreamingIndicato
  * and 1 (`ta.change` is na on bar 0), so the first defined RSI lands on bar
  * index `len` — mirroring the fixed batch implementation in `builtin.ts`.
  */
-export function streamingRsi(len: number): StreamingIndicator {
+export function streamingRsi(len: number, src: SourceExtractor = CLOSE): StreamingIndicator {
   const up = new Rma(len);
   const down = new Rma(len);
   let prev = NaN;
@@ -265,17 +272,18 @@ export function streamingRsi(len: number): StreamingIndicator {
   };
   return {
     next(b) {
+      const x = src(b);
       if (Number.isNaN(prev)) {
-        prev = b.close;
+        prev = x;
         return { rsi: NaN };
       }
-      const ch = b.close - prev;
-      prev = b.close;
+      const ch = x - prev;
+      prev = x;
       return { rsi: rsiOf(up.next(Math.max(ch, 0)), down.next(Math.max(-ch, 0))) };
     },
     peek(b) {
       if (Number.isNaN(prev)) return { rsi: NaN };
-      const ch = b.close - prev;
+      const ch = src(b) - prev;
       return { rsi: rsiOf(up.peek(Math.max(ch, 0)), down.peek(Math.max(-ch, 0))) };
     },
   };
@@ -284,7 +292,7 @@ export function streamingRsi(len: number): StreamingIndicator {
 const HIST_UP = "#26a69a";
 const HIST_DOWN = "#ef5350";
 
-export function streamingMacd(fast: number, slow: number, signal: number): StreamingIndicator {
+export function streamingMacd(fast: number, slow: number, signal: number, src: SourceExtractor = CLOSE): StreamingIndicator {
   const ef = new Ema(fast);
   const es = new Ema(slow);
   const sig = new Ema(signal);
@@ -298,11 +306,13 @@ export function streamingMacd(fast: number, slow: number, signal: number): Strea
   };
   return {
     next(b) {
-      const macd = ef.next(b.close) - es.next(b.close);
+      const x = src(b);
+      const macd = ef.next(x) - es.next(x);
       return out(macd, sig.next(macd));
     },
     peek(b) {
-      const macd = ef.peek(b.close) - es.peek(b.close);
+      const x = src(b);
+      const macd = ef.peek(x) - es.peek(x);
       return out(macd, sig.peek(macd));
     },
   };

@@ -1,0 +1,506 @@
+//@version=6
+indicator("Value Area Pro", shorttitle="VA Pro",
+     overlay=true,
+     max_boxes_count=500,
+     max_lines_count=200,
+     max_labels_count=200,
+     max_bars_back=5000)
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ████████  V A L U E   A R E A   P R O  ████████
+//
+//  PROFILE  — POC, VAH, VAL, HVN lines, LVN lines
+//  DASHBOARD — Live VA position and bias
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ░░  INPUTS — VOLUME PROFILE
+// ─────────────────────────────────────────────────────────────────────────────
+gVP        = "━━━━  Volume Profile  ━━━━"
+vpMode     = input.string("Session", "Mode",
+     options=["Session","Lookback"], group=gVP,
+     tooltip="Session resets each day. Lookback uses a fixed bar count.")
+vpLookback = input.int(300,  "Lookback Bars",        group=gVP, minval=50,  maxval=2000)
+vpRows     = input.int(100,  "Rows",                 group=gVP, minval=30,  maxval=300)
+vpWidth    = input.int(40,   "Profile Width",        group=gVP, minval=10,  maxval=150)
+vpOffset   = input.int(50,   "Profile Offset",       group=gVP, minval=0,   maxval=200)
+vaPercent  = input.float(70, "Value Area %",         group=gVP, minval=50,  maxval=95, step=5,
+     tooltip="Percentage of total volume defining the Value Area. Standard = 70%.")
+showProfile= input.bool(true,  "Show Profile Bars",  group=gVP)
+showVA     = input.bool(true,  "Show Value Area",    group=gVP)
+showPOC    = input.bool(true,  "Show POC",           group=gVP)
+showHVN    = input.bool(true,  "Show HVN Lines",     group=gVP,
+     tooltip="High Volume Nodes — price slows and builds structure here.")
+showLVN    = input.bool(true,  "Show LVN Lines",     group=gVP,
+     tooltip="Low Volume Nodes — price moves aggressively through these fast lanes.")
+hvnPct     = input.float(70,  "HVN Threshold %",    group=gVP, minval=50, maxval=95, step=5)
+lvnPct     = input.int(7,     "LVN Detection %",    group=gVP, minval=1,  maxval=30)
+lvnThresh  = input.float(1.0, "LVN Vol Thresh %",   group=gVP, minval=0,  maxval=20)
+maxLVN     = input.int(5,     "Max LVN Lines",      group=gVP, minval=1,  maxval=10)
+lvnExtend  = input.int(400,   "Lines Extend Left",  group=gVP, minval=50, maxval=2000)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ░░  INPUTS — LABELS
+// ─────────────────────────────────────────────────────────────────────────────
+gLBL       = "━━━━  Labels  ━━━━"
+labelPos   = input.string("Right", "Label Position",
+     options=["Left","Right","Center"], group=gLBL,
+     tooltip="Where to place POC/VAH/VAL/HVN/LVN labels along the line.")
+showLabels = input.bool(true,  "Show Labels",        group=gLBL)
+labelSize  = input.string("small", "Label Size",
+     options=["tiny","small","normal"], group=gLBL)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ░░  INPUTS — COLORS
+// ─────────────────────────────────────────────────────────────────────────────
+gCOL      = "━━━━  Colors  ━━━━"
+bullCol   = input.color(#00E676,                "Bull",     group=gCOL)
+bearCol   = input.color(#FF5252,                "Bear",     group=gCOL)
+pocCol    = input.color(#FFEB3B,                "POC",      group=gCOL)
+vahCol    = input.color(color.new(#FF5252, 40), "VAH Line", group=gCOL)
+valCol    = input.color(color.new(#00E676, 40), "VAL Line", group=gCOL)
+vaFillCol = input.color(color.new(#9E9E9E, 92), "VA Fill",  group=gCOL)
+showDash  = input.bool(true, "Show Dashboard",  group=gCOL)
+showBG    = input.bool(false,"Show Background", group=gCOL,
+     tooltip="Subtle background color when price is outside the Value Area.")
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ░░  SESSION
+// ─────────────────────────────────────────────────────────────────────────────
+isNewDay  = ta.change(time("D")) != 0
+var int sessStart = 0
+if isNewDay or barstate.isfirst
+    sessStart := bar_index
+
+int vpBars = vpMode == "Session" ?
+     math.max(bar_index - sessStart, 2) : vpLookback
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ░░  PROFILE RANGE
+// ─────────────────────────────────────────────────────────────────────────────
+float profHigh  = ta.highest(high, math.max(vpBars, 2))
+float profLow   = ta.lowest(low,   math.max(vpBars, 2))
+float priceStep = profHigh > profLow ? (profHigh - profLow) / vpRows : 0.01
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ░░  BUILD PROFILE
+// ─────────────────────────────────────────────────────────────────────────────
+buildProfile(int bars) =>
+    array<float> vols = array.new<float>(vpRows, 0.0)
+    array<float> buys = array.new<float>(vpRows, 0.0)
+    if priceStep > 0
+        for i = 0 to math.max(bars, 1) - 1
+            float h = nz(high[i])
+            float l = nz(low[i])
+            float v = nz(volume[i])
+            bool  b = close[i] >= open[i]
+            if v > 0 and h > l
+                int kS = math.max(math.floor((l - profLow) / priceStep), 0)
+                int kE = math.min(math.floor((h - profLow) / priceStep), vpRows - 1)
+                float rng = h - l
+                for k = kS to kE
+                    float bL = profLow + k * priceStep
+                    float oL = math.max(l, bL)
+                    float oH = math.min(h, bL + priceStep)
+                    if oH > oL
+                        float aV = v * (oH - oL) / rng
+                        vols.set(k, vols.get(k) + aV)
+                        if b
+                            buys.set(k, buys.get(k) + aV)
+    [vols, buys]
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ░░  VALUE AREA
+// ─────────────────────────────────────────────────────────────────────────────
+calcValueArea(array<float> vols, float maxV, int pocIdx) =>
+    float totalV = vols.sum()
+    float targV  = totalV * (vaPercent / 100)
+    float accV   = vols.get(pocIdx)
+    int   vahIdx = pocIdx
+    int   valIdx = pocIdx
+    while accV < targV and (vahIdx < vpRows - 1 or valIdx > 0)
+        float vUp = vahIdx < vpRows - 1 ? vols.get(vahIdx + 1) : 0.0
+        float vDn = valIdx > 0          ? vols.get(valIdx - 1) : 0.0
+        if vUp >= vDn and vahIdx < vpRows - 1
+            vahIdx += 1
+            accV   += vUp
+        else if valIdx > 0
+            valIdx -= 1
+            accV   += vDn
+        else
+            break
+    [profLow + vahIdx * priceStep + priceStep, profLow + valIdx * priceStep]
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ░░  LVN DETECTION
+// ─────────────────────────────────────────────────────────────────────────────
+findValleys(array<float> vol, float maxV) =>
+    int   n   = math.max(int(vpRows * lvnPct / 100), 1)
+    float thr = maxV * (lvnThresh / 100)
+    array<float> pad = array.new<float>(0)
+    for i = 1 to n
+        pad.push(maxV)
+    for i = 0 to vpRows - 1
+        pad.push(vol.get(i))
+    for i = 1 to n
+        pad.push(maxV)
+    array<bool> isV = array.new<bool>(vpRows, false)
+    for k = 0 to vpRows - 1
+        int   pi = k + n
+        float bv = pad.get(pi)
+        if bv <= thr
+            continue
+        bool ab = true
+        bool bl = true
+        for j = pi + 1 to pi + n
+            if bv >= pad.get(j)
+                ab := false
+                break
+        for j = pi - n to pi - 1
+            if bv >= pad.get(j)
+                bl := false
+                break
+        if ab and bl
+            isV.set(k, true)
+    isV
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ░░  LIVE LEVELS (every bar for context)
+// ─────────────────────────────────────────────────────────────────────────────
+var float pocLevel = na
+var float vahLevel = na
+var float valLevel = na
+
+[volsLive, buysLive] = buildProfile(vpBars)
+if volsLive.size() > 0
+    float liveMax = volsLive.max()
+    if liveMax > 0
+        int liveIdx = 0
+        for k = 0 to vpRows - 1
+            if volsLive.get(k) == liveMax
+                liveIdx := k
+                break
+        pocLevel := profLow + liveIdx * priceStep + priceStep / 2
+        [lvah, lval] = calcValueArea(volsLive, liveMax, liveIdx)
+        vahLevel := lvah
+        valLevel := lval
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ░░  LABEL POSITION HELPER
+// ─────────────────────────────────────────────────────────────────────────────
+getLabelX(int xL, int xR) =>
+    int result = xL + 2
+    if labelPos == "Right"
+        result := xR - 2
+    else if labelPos == "Center"
+        result := int(math.avg(xL, xR))
+    result
+
+getLabelSize() =>
+    labelSize == "tiny" ? size.tiny : labelSize == "normal" ? size.normal : size.small
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ░░  DRAWING OBJECTS
+// ─────────────────────────────────────────────────────────────────────────────
+var array<box>   profBoxes = array.new<box>()
+var array<line>  hvnLines  = array.new<line>()
+var array<label> hvnLabels = array.new<label>()
+var array<line>  lvnLines  = array.new<line>()
+var array<label> lvnLabels = array.new<label>()
+var line         pocLine   = na
+var line         vahLine   = na
+var line         valLine   = na
+var box          vaFill    = na
+var label        pocLbl    = na
+var label        vahLbl    = na
+var label        valLbl    = na
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ░░  DRAW ON LAST BAR
+// ─────────────────────────────────────────────────────────────────────────────
+if barstate.islast
+    for b in profBoxes
+        b.delete()
+    profBoxes.clear()
+    for l in hvnLines
+        l.delete()
+    hvnLines.clear()
+    for l in hvnLabels
+        l.delete()
+    hvnLabels.clear()
+    for l in lvnLines
+        l.delete()
+    lvnLines.clear()
+    for l in lvnLabels
+        l.delete()
+    lvnLabels.clear()
+    line.delete(pocLine)
+    line.delete(vahLine)
+    line.delete(valLine)
+    box.delete(vaFill)
+    label.delete(pocLbl)
+    label.delete(vahLbl)
+    label.delete(valLbl)
+
+    if volsLive.size() > 0
+        float maxV = volsLive.max()
+        if maxV > 0
+            int xR = bar_index + vpOffset
+            int xL = bar_index - lvnExtend
+            int lx = getLabelX(xL, xR)
+            string ls = getLabelSize()
+
+            // POC index
+            int pocIdx = 0
+            for k = 0 to vpRows - 1
+                if volsLive.get(k) == maxV
+                    pocIdx := k
+                    break
+
+            // ── PROFILE BARS ──────────────────────────────────────────────
+            if showProfile
+                for k = 0 to vpRows - 1
+                    float bL  = profLow + k * priceStep
+                    float bH  = bL + priceStep
+                    float v   = volsLive.get(k)
+                    float bv  = buysLive.get(k)
+                    float rat = v / maxV
+                    int   w   = math.max(int(rat * vpWidth), 1)
+                    bool  poc = k == pocIdx
+                    bool  bd  = bv >= v * 0.5
+                    bool  isH = rat >= (hvnPct / 100)
+                    color fill= color.from_gradient(rat, 0, 1,
+                         color.new(bd ? bullCol : bearCol, 90),
+                         color.new(bd ? bullCol : bearCol, 15))
+                    if poc
+                        fill := color.new(pocCol, 15)
+                    if showHVN and isH and not poc
+                        fill := color.new(#FF9800, 40)
+                    profBoxes.push(box.new(xR - w, bH, xR, bL,
+                         poc ? color.new(pocCol, 10) : color.new(color.black, 100),
+                         poc ? 1 : 0, bgcolor=fill))
+
+            // ── HVN LINES — brighter dotted, cycling orange shades ────────
+            if showHVN
+                bool  inH    = false
+                float hBot   = na
+                float hTop   = na
+                int   hCount = 0
+                // Brighter — lower transparency values
+                array<color> hCols = array.from(
+                     color.new(#FF9800, 10),
+                     color.new(#FFB300, 15),
+                     color.new(#FFD740, 10),
+                     color.new(#FF6D00, 15),
+                     color.new(#FFCA28, 10))
+                for k = 0 to vpRows - 1
+                    float rat = volsLive.get(k) / maxV
+                    bool  isH = rat >= (hvnPct / 100) and k != pocIdx
+                    float bL  = profLow + k * priceStep
+                    float bH  = bL + priceStep
+                    if isH and not inH
+                        hBot := bL
+                        hTop := bH
+                        inH  := true
+                    else if isH and inH
+                        hTop := bH
+                    else if not isH and inH
+                        float mid = (hBot + hTop) / 2
+                        color lc  = hCols.get(hCount % hCols.size())
+                        hvnLines.push(line.new(xL, mid, xR, mid,
+                             color=lc, width=1, style=line.style_dotted))
+                        if showLabels
+                            hvnLabels.push(label.new(lx, mid, "HVN",
+                                 style=label.style_none,
+                                 textcolor=lc, size=ls))
+                        hCount += 1
+                        inH := false
+                if inH and not na(hBot) and not na(hTop)
+                    float mid = (hBot + hTop) / 2
+                    color lc  = hCols.get(hCount % hCols.size())
+                    hvnLines.push(line.new(xL, mid, xR, mid,
+                         color=lc, width=1, style=line.style_dotted))
+                    if showLabels
+                        hvnLabels.push(label.new(lx, mid, "HVN",
+                             style=label.style_none,
+                             textcolor=lc, size=ls))
+
+            // ── LVN LINES — brighter dashed, cycling colors ───────────────
+            if showLVN
+                isVly = findValleys(volsLive, maxV)
+                array<float> lB = array.new<float>()
+                array<float> lT = array.new<float>()
+                array<float> lD = array.new<float>()
+                bool  inZ = false
+                float zB  = na
+                float zT  = na
+                for k = 0 to vpRows - 1
+                    float bL = profLow + k * priceStep
+                    float bH = bL + priceStep
+                    bool  iv = isVly.get(k)
+                    if iv and not inZ
+                        zB := bL
+                        zT := bH
+                        inZ := true
+                    else if iv and inZ
+                        zT := bH
+                    else if not iv and inZ
+                        float m = (zB + zT) / 2
+                        lB.push(zB)
+                        lT.push(zT)
+                        lD.push(math.abs(m - close))
+                        inZ := false
+                if inZ and not na(zB) and not na(zT)
+                    float m = (zB + zT) / 2
+                    lB.push(zB)
+                    lT.push(zT)
+                    lD.push(math.abs(m - close))
+                lB.push(profHigh - priceStep * 3)
+                lT.push(profHigh)
+                lD.push(math.abs(profHigh - close))
+                lB.push(profLow)
+                lT.push(profLow + priceStep * 3)
+                lD.push(math.abs(profLow - close))
+
+                // Brighter — lower transparency
+                array<color> supCols = array.from(
+                     color.new(#00E676, 10),
+                     color.new(#00BCD4, 15),
+                     color.new(#69F0AE, 10),
+                     color.new(#1DE9B6, 15),
+                     color.new(#76FF03, 15))
+                array<color> resCols = array.from(
+                     color.new(#FF5252, 10),
+                     color.new(#FF4081, 15),
+                     color.new(#FF6E40, 10),
+                     color.new(#F48FB1, 15),
+                     color.new(#EA80FC, 15))
+
+                int tot = lB.size()
+                if tot > 0
+                    int drawN = math.min(maxLVN, tot)
+                    array<bool> used = array.new<bool>(tot, false)
+                    int supC = 0
+                    int resC = 0
+                    for n = 0 to drawN - 1
+                        float md = 999999.0
+                        int   mi = 0
+                        for z = 0 to tot - 1
+                            if not used.get(z) and lD.get(z) < md
+                                md := lD.get(z)
+                                mi := z
+                        used.set(mi, true)
+                        float gB  = lB.get(mi)
+                        float gT  = lT.get(mi)
+                        float gM  = (gB + gT) / 2
+                        bool  sup = gM < close
+                        color lc  = sup ? supCols.get(supC % supCols.size()) : resCols.get(resC % resCols.size())
+                        if sup
+                            supC += 1
+                        else
+                            resC += 1
+                        lvnLines.push(line.new(xL, gM, xR, gM,
+                             color=lc, width=1, style=line.style_dashed))
+                        if showLabels
+                            lvnLabels.push(label.new(lx, gM,
+                                 sup ? "LVN SUP" : "LVN RES",
+                                 style=label.style_none,
+                                 textcolor=lc, size=ls))
+
+            // ── VA FILL ───────────────────────────────────────────────────
+            if showVA
+                vaFill := box.new(xL, vahLevel, xR, valLevel,
+                     color.new(color.white, 100), 0, bgcolor=vaFillCol)
+
+            // ── POC ───────────────────────────────────────────────────────
+            if showPOC
+                pocLine := line.new(xL, pocLevel, xR, pocLevel,
+                     color=pocCol, width=2, style=line.style_solid)
+                if showLabels
+                    pocLbl := label.new(lx, pocLevel, "POC",
+                         style=label.style_none,
+                         textcolor=pocCol, size=ls)
+
+            // ── VAH / VAL ─────────────────────────────────────────────────
+            if showVA
+                vahLine := line.new(xL, vahLevel, xR, vahLevel,
+                     color=vahCol, width=1, style=line.style_dashed)
+                valLine := line.new(xL, valLevel, xR, valLevel,
+                     color=valCol, width=1, style=line.style_dashed)
+                if showLabels
+                    vahLbl := label.new(lx, vahLevel, "VAH",
+                         style=label.style_none,
+                         textcolor=vahCol, size=ls)
+                    valLbl := label.new(lx, valLevel, "VAL",
+                         style=label.style_none,
+                         textcolor=valCol, size=ls)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ░░  BACKGROUND
+// ─────────────────────────────────────────────────────────────────────────────
+aboveVA = close > vahLevel
+belowVA = close < valLevel
+
+bgcolor(showBG and aboveVA ? color.new(bullCol, 97) :
+        showBG and belowVA ? color.new(bearCol, 97) : na)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ░░  DASHBOARD
+// ─────────────────────────────────────────────────────────────────────────────
+var table dash = table.new(position.top_right, 3, 8,
+     bgcolor=color.new(color.black, 70),
+     border_color=color.new(color.white, 80), border_width=1,
+     frame_color=color.new(color.white, 70), frame_width=1)
+
+if barstate.islast and showDash
+    table.cell(dash, 0, 0, "VA PRO",
+         text_color=color.white, text_size=size.normal,
+         bgcolor=color.new(color.black, 20))
+    table.merge_cells(dash, 0, 0, 2, 0)
+
+    table.cell(dash, 0, 1, "Level",  text_color=color.new(color.white, 40), text_size=size.tiny)
+    table.cell(dash, 1, 1, "Price",  text_color=color.new(color.white, 40), text_size=size.tiny)
+    table.cell(dash, 2, 1, "Status", text_color=color.new(color.white, 40), text_size=size.tiny)
+
+    table.cell(dash, 0, 2, "VAH",  text_color=vahCol, text_size=size.tiny)
+    table.cell(dash, 1, 2, not na(vahLevel) ? str.tostring(math.round(vahLevel, 2)) : "—",
+         text_color=color.new(color.white, 20), text_size=size.tiny)
+    table.cell(dash, 2, 2, close > vahLevel ? "ABOVE ↑" : "BELOW",
+         text_color=close > vahLevel ? bullCol : color.new(color.white, 50), text_size=size.tiny)
+
+    table.cell(dash, 0, 3, "POC",  text_color=pocCol, text_size=size.tiny)
+    table.cell(dash, 1, 3, not na(pocLevel) ? str.tostring(math.round(pocLevel, 2)) : "—",
+         text_color=color.new(color.white, 20), text_size=size.tiny)
+    table.cell(dash, 2, 3, close > pocLevel ? "ABOVE" : "BELOW",
+         text_color=close > pocLevel ? bullCol : bearCol, text_size=size.tiny)
+
+    table.cell(dash, 0, 4, "VAL",  text_color=valCol, text_size=size.tiny)
+    table.cell(dash, 1, 4, not na(valLevel) ? str.tostring(math.round(valLevel, 2)) : "—",
+         text_color=color.new(color.white, 20), text_size=size.tiny)
+    table.cell(dash, 2, 4, close < valLevel ? "BELOW ↓" : "ABOVE",
+         text_color=close < valLevel ? bearCol : color.new(color.white, 50), text_size=size.tiny)
+
+    table.cell(dash, 0, 5, "── CONTEXT ──",
+         text_color=color.new(color.white, 50), text_size=size.tiny)
+    table.merge_cells(dash, 0, 5, 2, 5)
+
+    string posStr = aboveVA ? "ABOVE VA — Bullish" :
+                   belowVA  ? "BELOW VA — Bearish" :
+                   close > pocLevel ? "IN VA — Above POC" : "IN VA — Below POC"
+    color  posCol = aboveVA ? bullCol : belowVA ? bearCol :
+                   close > pocLevel ? color.new(bullCol, 40) : color.new(bearCol, 40)
+    table.cell(dash, 0, 6, "Position",
+         text_color=color.new(color.white, 40), text_size=size.tiny)
+    table.cell(dash, 1, 6, posStr, text_color=posCol, text_size=size.tiny)
+    table.merge_cells(dash, 1, 6, 2, 6)
+
+    float vaRange  = not na(vahLevel) and not na(valLevel) ? vahLevel - valLevel : na
+    float pctInVA  = not na(vaRange) and vaRange > 0 ?
+         math.max(0, math.min(100,
+         (close - valLevel) / vaRange * 100)) : na
+    table.cell(dash, 0, 7, "VA Position",
+         text_color=color.new(color.white, 40), text_size=size.tiny)
+    table.cell(dash, 1, 7,
+         not na(pctInVA) ? str.tostring(math.round(pctInVA, 0)) + "% from VAL" : "—",
+         text_color=color.new(color.white, 30), text_size=size.tiny)
+    table.merge_cells(dash, 1, 7, 2, 7)

@@ -30,7 +30,10 @@ export function registerTradingViewIndicators(
 ): IndicatorRegistry {
   for (const [name, raw] of Object.entries(TvIndicators as Record<string, unknown>)) {
     const def = defFromRaw(name, raw);
-    if (def) registry.register(def);
+    if (def) {
+      def.source = "tv"; // groups these under "TradingView" in the indicator menu
+      registry.register(def);
+    }
   }
   return registry;
 }

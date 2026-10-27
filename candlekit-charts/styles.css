@@ -402,6 +402,197 @@
   color: var(--ck-down);
 }
 
+/* ── IndicatorModal (TradingView-style browser) ────────────────────────────── */
+.ck-im-root { position: relative; display: inline-block; font-size: 12px; }
+.ck-im-trigger {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--ck-border); background: var(--ck-bg); color: var(--ck-fg);
+  border-radius: var(--ck-radius); padding: 5px 10px; cursor: pointer; font: inherit; font-size: 12px;
+}
+.ck-im-trigger:hover { border-color: var(--ck-accent); }
+.ck-im-trigger-icon { font-style: italic; color: var(--ck-accent); font-weight: 700; }
+.ck-im-count {
+  background: var(--ck-accent); color: var(--ck-accent-fg); border-radius: 999px;
+  font-size: 10px; padding: 0 6px; line-height: 16px; min-width: 16px; text-align: center;
+}
+.ck-im-overlay {
+  position: fixed; inset: 0; z-index: 9000;
+  background: hsl(224 30% 6% / 0.45);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.ck-im-modal {
+  width: min(760px, 96vw); max-height: min(620px, 92vh);
+  display: flex; flex-direction: column;
+  background: var(--ck-bg); backdrop-filter: blur(12px);
+  color: var(--ck-fg); border: 1px solid var(--ck-border);
+  border-radius: 12px; overflow: hidden;
+  box-shadow: 0 16px 48px hsl(224 30% 4% / 0.4);
+}
+.ck-im-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 10px;
+}
+.ck-im-h-title { font-size: 16px; font-weight: 600; }
+.ck-im-x {
+  border: 0; background: transparent; color: var(--ck-muted); cursor: pointer;
+  font-size: 15px; line-height: 1; padding: 4px;
+}
+.ck-im-x:hover { color: var(--ck-fg); }
+.ck-im-search {
+  display: flex; align-items: center; gap: 8px; margin: 0 16px 12px;
+  border: 1px solid var(--ck-border); border-radius: var(--ck-radius); padding: 8px 12px;
+}
+.ck-im-search:focus-within { border-color: var(--ck-accent); }
+.ck-im-search-icon { color: var(--ck-muted); }
+.ck-im-search input { flex: 1; border: 0; background: transparent; color: var(--ck-fg); font: inherit; outline: none; }
+.ck-im-body { display: flex; flex: 1; min-height: 0; border-top: 1px solid var(--ck-border); }
+.ck-im-side {
+  width: 210px; flex-shrink: 0; border-right: 1px solid var(--ck-border);
+  padding: 6px 8px 12px; overflow-y: auto;
+}
+.ck-im-side-group { font-size: 10px; letter-spacing: 0.06em; color: var(--ck-muted); padding: 12px 8px 4px; }
+.ck-im-side-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  border: 0; background: transparent; color: var(--ck-fg); cursor: pointer; font: inherit; font-size: 13px;
+  padding: 8px 10px; border-radius: var(--ck-radius); text-align: left;
+}
+.ck-im-side-item:hover { background: hsl(220 13% 50% / 0.12); }
+.ck-im-side-item--active { background: hsl(220 13% 50% / 0.18); font-weight: 600; }
+.ck-im-side-ic { width: 14px; text-align: center; }
+.ck-im-side-n { margin-left: auto; color: var(--ck-muted); font-size: 11px; }
+.ck-im-main { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 12px 14px; }
+.ck-im-tabs { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.ck-im-tab {
+  border: 0; background: transparent; color: var(--ck-muted); cursor: pointer; font: inherit; font-size: 13px;
+  padding: 6px 12px; border-radius: 999px;
+}
+.ck-im-tab:hover { background: hsl(220 13% 50% / 0.12); }
+.ck-im-tab--active { background: var(--ck-fg); color: var(--ck-bg); }
+.ck-im-listhead { font-size: 10px; letter-spacing: 0.06em; color: var(--ck-muted); padding: 6px 4px; }
+.ck-im-list { flex: 1; overflow-y: auto; min-height: 0; }
+.ck-im-empty { color: var(--ck-muted); padding: 24px 8px; text-align: center; font-size: 13px; }
+.ck-im-li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 8px; border-radius: var(--ck-radius); cursor: pointer; font-size: 14px;
+}
+.ck-im-li:hover { background: hsl(220 13% 50% / 0.12); }
+.ck-im-li--active { background: hsl(188 85% 38% / 0.12); }
+.ck-im-star { border: 0; background: transparent; cursor: pointer; color: var(--ck-muted); font-size: 14px; padding: 0 2px; }
+.ck-im-star--on { color: var(--ck-warn); }
+.ck-im-li-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ck-im-spacer { flex: 1; }
+.ck-im-badge {
+  font-size: 9px; font-weight: 600; letter-spacing: 0.04em;
+  padding: 1px 5px; border-radius: 4px; border: 1px solid var(--ck-border); color: var(--ck-muted);
+}
+.ck-im-badge--pine { color: var(--ck-up); border-color: var(--ck-up); }
+.ck-im-badge--tv { color: var(--ck-accent); border-color: var(--ck-accent); }
+.ck-im-cat { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; }
+.ck-im-cat--overlay { background: hsl(188 85% 38% / 0.18); color: var(--ck-accent); }
+.ck-im-cat--oscillator { background: hsl(38 92% 45% / 0.18); color: var(--ck-warn); }
+.ck-im-cat--pattern { background: hsl(270 60% 55% / 0.18); color: hsl(270 60% 60%); }
+.ck-im-check { color: var(--ck-accent); font-weight: 700; }
+.ck-im-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-top: 1px solid var(--ck-border);
+}
+.ck-im-foot-hint { font-size: 12px; color: var(--ck-muted); }
+.ck-im-addpine {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid var(--ck-border); background: transparent; color: var(--ck-accent);
+  border-radius: var(--ck-radius); padding: 6px 12px; cursor: pointer; font: inherit; font-size: 13px;
+}
+.ck-im-addpine:hover { border-color: var(--ck-accent); }
+.ck-im-pine-overlay {
+  position: absolute; inset: 0; z-index: 10; background: hsl(224 30% 6% / 0.5);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.ck-im-pine { width: min(560px, 92%); display: flex; flex-direction: column; background: var(--ck-bg); border: 1px solid var(--ck-border); border-radius: 12px; overflow: hidden; }
+.ck-im-pine-ta {
+  margin: 0 16px; min-height: 220px; resize: vertical;
+  border: 1px solid var(--ck-border); border-radius: var(--ck-radius);
+  background: hsl(220 13% 50% / 0.06); color: var(--ck-fg);
+  font-family: ui-monospace, "JetBrains Mono", monospace; font-size: 12px; padding: 10px; outline: none;
+}
+.ck-im-pine-ta:focus { border-color: var(--ck-accent); }
+.ck-im-pine-err { margin: 8px 16px 0; color: var(--ck-down); font-size: 12px; }
+.ck-im-pine-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; }
+.ck-im-btn {
+  border: 1px solid var(--ck-border); background: transparent; color: var(--ck-fg);
+  border-radius: var(--ck-radius); padding: 6px 14px; cursor: pointer; font: inherit; font-size: 13px;
+}
+.ck-im-btn--primary { background: var(--ck-accent); color: var(--ck-accent-fg); border-color: var(--ck-accent); }
+
+/* ── ChartLegend (on-chart status line) ────────────────────────────────────── */
+.ck-leg { display: flex; flex-direction: column; gap: 2px; font-size: 12px; pointer-events: none; }
+.ck-leg-row {
+  display: flex; align-items: center; gap: 6px; pointer-events: auto;
+  background: var(--ck-bg); border: 1px solid var(--ck-border); border-radius: 4px;
+  padding: 2px 6px; width: max-content; max-width: 360px;
+}
+.ck-leg-row--hidden { opacity: 0.5; }
+.ck-leg-name { font-weight: 600; color: var(--ck-fg); }
+.ck-leg-params { color: var(--ck-muted); font-size: 11px; }
+.ck-leg-val { font-variant-numeric: tabular-nums; }
+.ck-leg-actions { display: flex; align-items: center; gap: 2px; margin-left: 4px; opacity: 0; transition: opacity 0.1s; }
+.ck-leg-row:hover .ck-leg-actions { opacity: 1; }
+.ck-leg-btn { border: 0; background: transparent; color: var(--ck-muted); cursor: pointer; font-size: 12px; padding: 0 2px; line-height: 1; }
+.ck-leg-btn:hover { color: var(--ck-fg); }
+.ck-leg-btn--del:hover { color: var(--ck-down); }
+
+/* ── IndicatorSettingsDialog (Inputs / Style tabs) ─────────────────────────── */
+.ck-im-gear, .ck-iq-gear {
+  border: 0; background: transparent; color: var(--ck-muted); cursor: pointer; font-size: 13px; padding: 0 2px;
+}
+.ck-im-gear:hover, .ck-iq-gear:hover { color: var(--ck-accent); }
+.ck-set {
+  width: min(440px, 94vw); max-height: min(560px, 90vh); display: flex; flex-direction: column;
+  background: var(--ck-bg); backdrop-filter: blur(12px); color: var(--ck-fg);
+  border: 1px solid var(--ck-border); border-radius: 12px; overflow: hidden;
+  box-shadow: 0 16px 48px hsl(224 30% 4% / 0.4);
+}
+.ck-set-tabs { display: flex; gap: 6px; padding: 0 16px 10px; border-bottom: 1px solid var(--ck-border); }
+.ck-set-tab {
+  border: 0; background: transparent; color: var(--ck-muted); cursor: pointer; font: inherit; font-size: 13px;
+  padding: 6px 12px; border-radius: 999px;
+}
+.ck-set-tab--active { background: var(--ck-fg); color: var(--ck-bg); }
+.ck-set-body { padding: 12px 16px; overflow-y: auto; }
+.ck-set-empty { color: var(--ck-muted); padding: 20px 4px; text-align: center; font-size: 13px; }
+.ck-set-group { margin-bottom: 12px; }
+.ck-set-group-label { font-size: 10px; letter-spacing: 0.06em; color: var(--ck-muted); margin: 6px 0 4px; }
+.ck-set-field { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.ck-set-field-label { flex: 1; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ck-set-field input[type="number"], .ck-set-field input[type="text"], .ck-set-field select {
+  width: 120px; background: hsl(220 13% 50% / 0.08); color: var(--ck-fg);
+  border: 1px solid var(--ck-border); border-radius: 4px; padding: 4px 6px; font: inherit; font-size: 12px;
+}
+.ck-set-field input[type="color"], .ck-set-row input[type="color"] {
+  width: 28px; height: 24px; padding: 0; border: 1px solid var(--ck-border); border-radius: 4px; background: none; cursor: pointer;
+}
+.ck-set-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.ck-set-row-label { flex: 1; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ck-set-row select {
+  background: hsl(220 13% 50% / 0.08); color: var(--ck-fg);
+  border: 1px solid var(--ck-border); border-radius: 4px; padding: 4px 6px; font: inherit; font-size: 12px;
+}
+
+/* ── IndicatorQuickPanel (always-visible Favorites + Active toggles) ────────── */
+.ck-iq {
+  width: 210px; background: var(--ck-bg); backdrop-filter: blur(12px);
+  color: var(--ck-fg); border: 1px solid var(--ck-border); border-radius: var(--ck-radius);
+  padding: 8px 10px; font-size: 12px;
+}
+.ck-iq-head { font-size: 11px; font-weight: 600; color: var(--ck-muted); letter-spacing: 0.04em; margin-bottom: 6px; }
+.ck-iq-group { margin-top: 6px; }
+.ck-iq-group-label { font-size: 9px; letter-spacing: 0.08em; color: var(--ck-muted); margin: 4px 0 2px; }
+.ck-iq-row { display: flex; align-items: center; gap: 8px; padding: 4px 2px; cursor: pointer; }
+.ck-iq-row:hover { background: hsl(220 13% 50% / 0.1); border-radius: 4px; }
+.ck-iq-row input { accent-color: var(--ck-accent); cursor: pointer; }
+.ck-iq-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ck-iq-star { border: 0; background: transparent; color: var(--ck-muted); cursor: pointer; font-size: 13px; padding: 0 2px; }
+.ck-iq-star--on { color: var(--ck-warn); }
+
 /* ── Measurement readout (Shift-drag ruler) ────────────────────────────────── */
 .ck-measure-layer {
   position: absolute;

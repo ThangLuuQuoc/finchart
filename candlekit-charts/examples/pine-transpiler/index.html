@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en" class="dark" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pine→TS UI Transpiler — FinChart</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: #0a0e17;
+        color: #e5e7eb;
+        font-family: 'Inter', system-ui, sans-serif;
+        overflow: hidden;
+      }
+      
+      /* Top Navbar */
+      #navbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 16px;
+        background: #0f172a;
+        border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+        height: 48px;
+      }
+      .brand {
+        font-size: 15px;
+        font-weight: 600;
+        background: linear-gradient(90deg, #818cf8, #6366f1, #a78bfa);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .brand .badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: rgba(99, 102, 241, 0.2);
+        color: #818cf8;
+        border: 1px solid rgba(99, 102, 241, 0.3);
+      }
+      .actions {
+        display: flex;
+        gap: 12px;
+      }
+      button.primary {
+        background: #4f46e5;
+        color: white;
+        border: none;
+        padding: 6px 16px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: background 0.2s;
+      }
+      button.primary:hover { background: #4338ca; }
+      button.primary:disabled { background: #312e81; cursor: not-allowed; opacity: 0.7; }
+      
+      /* Main Layout */
+      #layout {
+        display: flex;
+        height: calc(100vh - 48px);
+      }
+      
+      /* Left Panel: Editor & Code */
+      #left-panel {
+        width: 45%;
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid #1e293b;
+        background: #0f172a;
+      }
+      .panel-header {
+        padding: 8px 16px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        background: #0f172a;
+        border-bottom: 1px solid #1e293b;
+        display: flex;
+        justify-content: space-between;
+      }
+      #editor-container {
+        flex: 1;
+        min-height: 0;
+      }
+      #output-container {
+        height: 250px;
+        border-top: 1px solid #1e293b;
+        display: flex;
+        flex-direction: column;
+      }
+      #ts-output {
+        flex: 1;
+        padding: 12px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: #a5b4fc;
+        background: #0b1120;
+        overflow-y: auto;
+        white-space: pre;
+      }
+      
+      /* Right Panel: Chart & Settings */
+      #right-panel {
+        width: 55%;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
+      #chart-container {
+        flex: 1;
+        min-height: 0;
+        background: #0b1120;
+        position: relative;
+      }
+      #chart { width: 100%; height: 100%; }
+      
+      #status-overlay {
+        position: absolute;
+        top: 16px; left: 16px;
+        z-index: 10;
+        padding: 8px 12px;
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid #1e293b;
+        border-radius: 8px;
+        backdrop-filter: blur(8px);
+        font-size: 13px;
+        display: none;
+      }
+      #status-overlay.visible { display: block; }
+      .error-text { color: #f87171; }
+      .success-text { color: #4ade80; }
+      
+      /* Settings Panel (Floating or Bottom) */
+      #settings-panel {
+        height: 250px;
+        border-top: 1px solid #1e293b;
+        background: #0f172a;
+        padding: 16px;
+        overflow-y: auto;
+      }
+      
+      .input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 12px;
+      }
+      .input-group label {
+        font-size: 12px;
+        color: #94a3b8;
+      }
+      .input-group input[type="number"], .input-group input[type="text"] {
+        background: #1e293b;
+        border: 1px solid #334155;
+        color: #f8fafc;
+        padding: 6px 8px;
+        border-radius: 4px;
+        font-size: 13px;
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .input-group input[type="checkbox"] {
+        accent-color: #4f46e5;
+        width: 16px; height: 16px;
+      }
+      .checkbox-row {
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+      }
+      
+      /* Monaco fix */
+      .monaco-editor { padding-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <div id="navbar">
+      <div class="brand">
+        Pine→TS Transpiler <span class="badge">v1.0</span>
+      </div>
+      <div class="actions">
+        <button id="btn-run" class="primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          Transpile & Run
+        </button>
+      </div>
+    </div>
+    
+    <div id="layout">
+      <!-- Left: Editor -->
+      <div id="left-panel">
+        <div class="panel-header">
+          <span>Pine Script Source</span>
+        </div>
+        <div id="editor-container"></div>
+        
+        <div id="output-container">
+          <div class="panel-header">
+            <span>Generated TypeScript</span>
+            <span id="compile-time" style="color:#6366f1"></span>
+          </div>
+          <div id="ts-output">Waiting for compilation...</div>
+        </div>
+      </div>
+      
+      <!-- Right: Chart & Settings -->
+      <div id="right-panel">
+        <div id="status-overlay"></div>
+        <div id="chart-container">
+          <div id="chart"></div>
+        </div>
+        
+        <div id="settings-panel">
+          <div class="panel-header" style="padding:0 0 12px 0; background:transparent; border-bottom:none;">
+            <span>Indicator Settings</span>
+          </div>
+          <div id="settings-form">
+            <div style="color:#64748b; font-size:13px;">No settings generated yet. Run a script.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>

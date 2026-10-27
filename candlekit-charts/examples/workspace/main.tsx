@@ -11,6 +11,7 @@ import {
   useLayout,
 } from "@getcandlekit/charts/react/workspace";
 import { createFullIndicatorRegistry } from "@getcandlekit/charts/indicators-tv";
+import { setupWorkspacePine } from "./pineSetup";
 import "@getcandlekit/charts/styles.css";
 import "flexlayout-react/style/dark.css";
 // Re-points FlexLayout's palette at the demo's --app-* tokens so the tab strip
@@ -25,8 +26,11 @@ import "./flexlayout-theme.css";
 // replay windows. Everything revolves around the chart pane.
 
 // Every ChartPanel's Indicators dropdown lists the full 400+ MIT catalog
-// (candlekit built-ins + lightweight-charts-indicators) before any pane mounts.
-setWorkspaceIndicatorRegistry(createFullIndicatorRegistry());
+// (candlekit built-ins + lightweight-charts-indicators) before any pane mounts,
+// plus user/seeded Pine scripts compiled via the @finchart transpiler.
+const workspaceRegistry = createFullIndicatorRegistry();
+setupWorkspacePine(workspaceRegistry);
+setWorkspaceIndicatorRegistry(workspaceRegistry);
 
 const workspace = createWorkspace({
   id: "candlekit-workspace",

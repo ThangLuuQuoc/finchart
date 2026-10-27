@@ -14,7 +14,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import {
   ChartView,
   DrawingToolbar,
-  IndicatorPicker,
+  IndicatorModal,
+  IndicatorSettingsDialog,
+  ChartLegend,
   MeasurementOverlay,
   ReplayControls,
   createReplayController,
@@ -26,7 +28,7 @@ import {
   IndicatorController,
   usePageTheme,
 } from "../../index";
-import { getWorkspaceIndicatorRegistry } from "./indicatorRegistry";
+import { getWorkspaceIndicatorRegistry, getWorkspaceAddPineScript } from "./indicatorRegistry";
 import { generateBars, type RawBar } from "../../../core/data";
 import { SyncEngineImpl } from "../../../sync/SyncEngine";
 import type { SyncEvent, SyncMember } from "../../../sync/types";
@@ -116,6 +118,18 @@ function ChartPanelInner({
     const ctl = new IndicatorController(getWorkspaceIndicatorRegistry());
     ctl.add("EMA", { length: 21 });
     return ctl;
+  }, []);
+
+  const [settingsName, setSettingsName] = useState<string | null>(null);
+  // Bind the workspace handler to THIS pane's controller so a drawing-based Pine
+  // script (e.g. Volume Profile) attaches its plugin to the pane the user added
+  // it from. Series-based scripts ignore ctx and register an IndicatorDef.
+  const hasPineHandler = getWorkspaceAddPineScript() != null;
+  const onAddPineScript = useCallback((source: string) => {
+    const handler = getWorkspaceAddPineScript();
+    if (!handler) return { ok: false, error: "Pine chưa được cấu hình" };
+    const controller = apiRef.current?.controller;
+    return handler(source, controller ? { controller } : undefined);
   }, []);
 
   const drawingOpts = useMemo(() => ({ storageKey: `candlekit:workspace:drawings:${panelId}` }), [panelId]);
@@ -341,6 +355,7 @@ function ChartPanelInner({
         theme={config.theme ?? pageTheme}
         drawing={drawingOpts}
         measurement
+        pointMarker
         indicators={indicators}
         onReady={onReady}
       >
@@ -374,10 +389,21 @@ function ChartPanelInner({
               <option key={i} value={i}>{i}</option>
             ))}
           </select>
-          <IndicatorPicker className="ck-ind ck-ind--docked" />
+          <IndicatorModal
+            className="ck-im-root ck-ind--docked"
+            onOpenSettings={setSettingsName}
+            onAddPineScript={hasPineHandler ? onAddPineScript : undefined}
+          />
           <span style={S.pillDate} title="Session date">{session.date}</span>
           {replayOn && <span style={S.pillReplay}>REPLAY</span>}
         </div>
+
+        {/* On-chart legend: active indicators + live values + eye/gear/✕. */}
+        <div style={{ position: "absolute", top: 48, left: 8, zIndex: 6 }}>
+          <ChartLegend onOpenSettings={setSettingsName} />
+        </div>
+
+        <IndicatorSettingsDialog name={settingsName} onClose={() => setSettingsName(null)} />
         <MeasurementOverlay />
       </ChartView>
 
