@@ -4,10 +4,16 @@ import type { Bar, SeriesType } from "../core/types";
 import { resample, toBars, type RawBar } from "../core/data";
 import type { ResampleOptions } from "../core/types";
 import type { ThemeInput } from "../core/theme";
+import {
+  attachLiveEdgeFollower,
+  type LiveEdgeFollowerOptions,
+} from "../chart/liveEdgeFollower";
 import { DrawingController, type DrawingControllerOptions } from "../drawing/DrawingController";
 import type { IndicatorController } from "../indicators/IndicatorController";
 import { MeasurementController, type MeasurementOptions } from "../measurement/MeasurementController";
 import { PointMarkerController, type PointMarkerOptions } from "../measurement/PointMarkerController";
+import { SketchSearchController, type SketchSearchOptions } from "../lab/SketchSearchController";
+import { EchoesController, type EchoesOptions } from "../lab/EchoesController";
 import { useChartController } from "./hooks/useChartController";
 import { ChartContext, type ChartViewApi } from "./context";
 
@@ -35,6 +41,16 @@ export interface ChartViewProps {
   measurement?: boolean | MeasurementOptions;
   /** Enable Ctrl-click point marker ("catch point"). `true` for defaults, or pass options. */
   pointMarker?: boolean | PointMarkerOptions;
+  /** Enable Sketch Search (draw a shape, find look-alikes). `true` or options. */
+  sketch?: boolean | SketchSearchOptions;
+  /** Enable Echoes / "market déjà vu". `true` or options. */
+  echoes?: boolean | EchoesOptions;
+  /**
+   * Keep the newest bar in frame as live bars append. `true` for defaults, or
+   * pass {@link LiveEdgeFollowerOptions}. It only follows while the viewport is
+   * parked at the live edge — a user reading history is never pulled forward.
+   */
+  followLiveEdge?: boolean | LiveEdgeFollowerOptions;
 
   /** Fired once the chart + plugins are live. */
   onReady?: (api: ChartViewApi) => void;
@@ -61,6 +77,9 @@ export function ChartView({
   indicators,
   measurement,
   pointMarker,
+  sketch,
+  echoes,
+  followLiveEdge,
   onReady,
   className,
   style,
@@ -97,16 +116,35 @@ export function ChartView({
     if (!controller) return;
     let measurementCtl: MeasurementController | null = null;
     let pointMarkerCtl: PointMarkerController | null = null;
+    let sketchCtl: SketchSearchController | null = null;
+    let echoesCtl: EchoesController | null = null;
 
     if (drawingCtl) controller.use(drawingCtl);
     if (indicators) controller.use(indicators);
     if (measurement) {
-      measurementCtl = new MeasurementController(typeof measurement === "object" ? measurement : {});
+      const measureOpts = typeof measurement === "object" ? measurement : {};
+      measurementCtl = new MeasurementController({
+        ...measureOpts,
+        // An armed ruler must own the next click: without the lock, that click
+        // would grab the drawing underneath instead of finalising the ruler.
+        onArmedChange: (armed) => {
+          drawingCtl?.engine.setLocked(armed);
+          measureOpts.onArmedChange?.(armed);
+        },
+      });
       controller.use(measurementCtl);
     }
     if (pointMarker) {
       pointMarkerCtl = new PointMarkerController(typeof pointMarker === "object" ? pointMarker : {});
       controller.use(pointMarkerCtl);
+    }
+    if (sketch) {
+      sketchCtl = new SketchSearchController(typeof sketch === "object" ? sketch : {});
+      controller.use(sketchCtl);
+    }
+    if (echoes) {
+      echoesCtl = new EchoesController(typeof echoes === "object" ? echoes : {});
+      controller.use(echoesCtl);
     }
 
     const next: ChartViewApi = {
@@ -115,6 +153,8 @@ export function ChartView({
       indicators: indicators ?? null,
       measurement: measurementCtl,
       pointMarker: pointMarkerCtl,
+      sketch: sketchCtl,
+      echoes: echoesCtl,
     };
     setApi(next);
     onReady?.(next);
@@ -124,9 +164,22 @@ export function ChartView({
       if (indicators) controller.remove(indicators.id);
       if (measurementCtl) controller.remove(measurementCtl.id);
       if (pointMarkerCtl) controller.remove(pointMarkerCtl.id);
+      if (sketchCtl) controller.remove(sketchCtl.id);
+      if (echoesCtl) controller.remove(echoesCtl.id);
     };
     // onReady intentionally excluded from deps — callers pass inline fns.
-  }, [controller, drawingCtl, indicators, measurement, pointMarker]);
+  }, [controller, drawingCtl, indicators, measurement, pointMarker, sketch, echoes]);
+
+  // Live-edge follower. Attached to the main series, so it re-attaches when the
+  // series type changes underneath it.
+  useEffect(() => {
+    if (!controller || !followLiveEdge) return;
+    return attachLiveEdgeFollower(
+      controller.getChart(),
+      controller.getSeries(),
+      typeof followLiveEdge === "object" ? followLiveEdge : {},
+    );
+  }, [controller, followLiveEdge, seriesType]);
 
   // Data.
   useEffect(() => {

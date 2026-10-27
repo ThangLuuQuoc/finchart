@@ -15,6 +15,9 @@ chart-lib/
 │   │   ├── time.ts               fixed-offset helpers, dateOf/timeOf
 │   │   └── theme.ts              light/dark presets, resolveTheme, buildThemeOptions
 │   ├── events/eventBus.ts        Typed EventBus
+│   ├── dom/                      Dependency-free DOM leaf (keeps core/ DOM-free)
+│   │   ├── ownerWindow.ts         ownerWindowOf / ownerDocumentOf — resolve from a node
+│   │   └── kv.ts                  KVStore + localStorageKV (shared storage backend)
 │   ├── plugins/types.ts          ChartPlugin, PluginContext, ChartEventMap
 │   ├── chart/ChartController.ts  Imperative LWC wrapper (the hub)
 │   ├── data-source/types.ts      BarDataSource / StreamingDataSource / ReplayDataSource
@@ -48,6 +51,13 @@ chart-lib/
 │   │   └── MockFeed.ts            Synthetic provider for dev/tests
 │   ├── ml/
 │   │   └── types.ts               MLPlugin/FeatureGenerator/SignalProvider/PredictionOverlay
+│   ├── lab/                       Pattern-similarity analytics (in core entry)
+│   │   ├── types.ts               SimilarityMatch/EchoResult/EchoScan/StrokePoint
+│   │   ├── similarity.ts          zNormalize, findSimilar, buildEchoScan, resampleStroke (pure)
+│   │   ├── MatchHighlightPrimitive.ts  window bands (ISeriesPrimitive, shared)
+│   │   ├── SketchStrokePrimitive.ts    live freehand stroke (pixel-space)
+│   │   ├── SketchSearchController.ts    ChartPlugin: draw → search → highlight
+│   │   └── EchoesController.ts          ChartPlugin: déjà-vu scan + forward projection
 │   ├── indicators-tv/             Optional entry (peer: lightweight-charts-indicators)
 │   │   └── index.ts               registerTradingViewIndicators / createFullIndicatorRegistry
 │   └── react/                     React bindings (second build entry)
@@ -57,6 +67,8 @@ chart-lib/
 │       ├── DrawingToolbar.tsx
 │       ├── IndicatorPicker.tsx
 │       ├── ReplayControls.tsx
+│       ├── SketchSearchButton.tsx  Lab: sketch toggle + match badge
+│       ├── EchoesPanel.tsx         Lab: scan controls + stats + sparklines
 │       ├── SplitPane.tsx          Resizable two-pane split (nest for grids)
 │       ├── hooks/useChartController.ts
 │       └── hooks/usePageTheme.ts  Reflect <html data-theme> into React

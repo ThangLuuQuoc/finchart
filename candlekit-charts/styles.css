@@ -57,6 +57,10 @@
   border-bottom: 1px solid color-mix(in srgb, var(--ck-border) 60%, transparent);
   border-radius: 0 0 8px 0;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  /* Never taller than the chart host: a short panel would otherwise overflow
+   * its container and force the whole pane scrollable. */
+  max-height: 100%;
+  overflow-y: auto;
 }
 /* Thin divider between tool groups (line tools · shapes · fib). */
 .ck-toolbar-sep {
@@ -125,6 +129,11 @@
 }
 .ck-ind-trigger:hover {
   border-color: var(--ck-accent);
+}
+.ck-ind-trigger--icon {
+  width: 24px;
+  justify-content: center;
+  padding: 0;
 }
 .ck-ind-trigger-icon {
   font-style: italic;
@@ -605,11 +614,13 @@
   padding: 6px 10px;
   font-family: inherit;
   color: var(--ck-muted);
-  background: var(--ck-bg);
-  backdrop-filter: blur(6px);
+  /* See-through: the readout sits ON the chart while the ruler is armed, so the
+   * bars behind it have to stay readable. An opaque card with a drop shadow
+   * hides exactly the candles being measured. */
+  background: color-mix(in srgb, var(--ck-bg) 30%, transparent);
+  backdrop-filter: blur(1px);
   border: 1px solid var(--ck-border);
   border-radius: var(--ck-radius);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
 }
 .ck-measure--up {
   border-color: color-mix(in srgb, var(--ck-up) 40%, transparent);
@@ -641,6 +652,149 @@
 .ck-measure-meta {
   font-size: 11px;
   color: var(--ck-muted);
+}
+
+/* ── Chart context menu ────────────────────────────────────── */
+/* Fixed-positioned: the menu is placed at the pointer's viewport coordinates,
+ * so it is not clipped by the chart container's overflow. */
+.ck-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 190px;
+  overflow: hidden;
+  padding: 4px 0;
+  border: 1px solid var(--ck-border);
+  border-radius: var(--ck-radius);
+  background: var(--ck-bg);
+  backdrop-filter: blur(6px);
+  color: var(--ck-fg);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  font-size: 12px;
+}
+.ck-menu-head {
+  padding: 4px 12px 6px;
+  border-bottom: 1px solid var(--ck-border);
+  margin-bottom: 4px;
+  color: var(--ck-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.ck-menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ck-menu-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ck-accent) 16%, transparent);
+}
+.ck-menu-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ck-menu-item--danger {
+  color: var(--ck-down);
+}
+.ck-menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--ck-border);
+}
+.ck-menu-styles {
+  display: flex;
+  gap: 4px;
+  padding: 4px 12px;
+}
+.ck-menu-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid var(--ck-border);
+  cursor: pointer;
+  padding: 0;
+}
+.ck-menu-swatch--on {
+  outline: 2px solid var(--ck-accent);
+  outline-offset: 1px;
+}
+.ck-menu-width {
+  min-width: 20px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--ck-border);
+  background: transparent;
+  color: var(--ck-muted);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.ck-menu-width--on {
+  border-color: var(--ck-accent);
+  color: var(--ck-accent);
+}
+
+/* ── Indicator legend ───────────────────────────────────────── */
+/* Top-left readout under the toolbar. Never intercepts pointer events — the
+ * chart keeps every drag / crosshair / click underneath it. */
+.ck-legend {
+  position: absolute;
+  top: 8px;
+  left: 44px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: calc(100% - 110px);
+  padding: 3px 6px;
+  border: 1px solid var(--ck-border);
+  border-radius: var(--ck-radius);
+  background: var(--ck-bg);
+  backdrop-filter: blur(2px);
+  font-size: 11px;
+  line-height: 1.1;
+  pointer-events: none;
+  user-select: none;
+}
+.ck-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ck-legend-name {
+  color: var(--ck-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.ck-legend-plot {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.ck-legend-plot-title {
+  color: var(--ck-muted);
+  font-size: 9px;
+  opacity: 0.8;
+}
+.ck-legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  display: inline-block;
+}
+.ck-legend-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 3ch;
+  display: inline-block;
 }
 
 /* ── Replay panel ──────────────────────────────────────────────────────────── */
@@ -788,4 +942,311 @@
 .ck-replay-error {
   color: var(--ck-down);
   font-size: 11px;
+}
+.ck-replay-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ck-muted);
+}
+.ck-replay-progress-step {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ck-replay-progress-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Lab: Sketch Search + Echoes ───────────────────────────────────────────── */
+.ck-lab-btn {
+  width: auto;
+  gap: 6px;
+  padding: 0 10px;
+}
+.ck-lab-btn-label {
+  font-size: 12px;
+  font-weight: 500;
+}
+.ck-badge {
+  min-width: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  color: var(--ck-accent-fg);
+  background: var(--ck-accent);
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ck-lab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 272px;
+  padding: 14px;
+  color: var(--ck-fg);
+  background: color-mix(in srgb, var(--ck-bg) 94%, transparent);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--ck-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px -10px rgba(0, 0, 0, 0.5);
+  font-size: 12px;
+}
+
+/* Header */
+.ck-lab-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ck-lab-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.ck-lab-tag {
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ck-accent);
+  background: color-mix(in srgb, var(--ck-accent) 16%, transparent);
+  border-radius: 999px;
+}
+.ck-lab-sub {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ck-muted);
+}
+
+/* Controls */
+.ck-lab-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.ck-lab-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ck-muted);
+}
+.ck-lab-field input {
+  width: 52px;
+  padding: 5px 7px;
+  font-size: 12px;
+  color: var(--ck-fg);
+  background: color-mix(in srgb, var(--ck-muted) 8%, transparent);
+  border: 1px solid var(--ck-border);
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.ck-lab-field input:focus {
+  outline: none;
+  border-color: var(--ck-accent);
+}
+.ck-lab-run,
+.ck-lab-clear {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.ck-lab-run {
+  margin-left: auto;
+  color: var(--ck-accent-fg);
+  background: var(--ck-accent);
+}
+.ck-lab-run:hover {
+  filter: brightness(1.08);
+}
+.ck-lab-clear {
+  color: var(--ck-muted);
+  background: transparent;
+  border-color: var(--ck-border);
+}
+.ck-lab-clear:hover {
+  color: var(--ck-fg);
+  background: color-mix(in srgb, var(--ck-muted) 12%, transparent);
+}
+
+.ck-lab-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ck-muted);
+}
+.ck-lab-hint b {
+  color: var(--ck-fg);
+}
+
+/* Hero outcome */
+.ck-lab-hero {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--ck-muted) 8%, transparent);
+  border-radius: 8px;
+}
+.ck-lab-hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ck-lab-hero-val {
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.ck-lab-hero-cap {
+  font-size: 10px;
+  color: var(--ck-muted);
+}
+.ck-lab-bias {
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ck-lab-bias small {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ck-muted);
+}
+
+/* Secondary stats */
+.ck-lab-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.ck-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.ck-stat-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ck-muted);
+}
+.ck-stat-value {
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.ck-tone--up {
+  color: var(--ck-up);
+}
+.ck-tone--down {
+  color: var(--ck-down);
+}
+
+/* Projection */
+.ck-lab-proj {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--ck-border) 60%, transparent);
+}
+.ck-lab-proj-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ck-muted);
+}
+
+/* Ranked matches */
+.ck-lab-matches {
+  display: flex;
+  flex-direction: column;
+  max-height: 224px;
+  overflow-y: auto;
+  margin: 0 -4px;
+}
+.ck-lab-matches-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 4px 4px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ck-muted);
+}
+.ck-lab-match {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+  border-radius: 6px;
+}
+.ck-lab-match:hover {
+  background: color-mix(in srgb, var(--ck-muted) 10%, transparent);
+}
+.ck-lab-match-rank {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  color: var(--ck-muted);
+  background: color-mix(in srgb, var(--ck-muted) 14%, transparent);
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.ck-lab-match-sim {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--ck-muted);
+  font-variant-numeric: tabular-nums;
+}
+.ck-lab-match-end {
+  width: 48px;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.ck-lab-empty {
+  padding: 4px 0;
+  font-size: 11px;
+  color: var(--ck-muted);
+}
+
+.ck-spark {
+  display: block;
+  overflow: visible;
+}
+.ck-spark--up {
+  color: var(--ck-up);
+}
+.ck-spark--down {
+  color: var(--ck-down);
+}
+.ck-spark-zero {
+  stroke: var(--ck-muted);
+  stroke-width: 0.5;
+  stroke-dasharray: 2 2;
+  opacity: 0.6;
 }

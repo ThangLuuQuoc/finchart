@@ -17,8 +17,12 @@ export * from "./core/theme";
 export * from "./events/eventBus";
 export * from "./plugins/types";
 
+// ── Browser-window helpers (multi-window / detached-panel correctness) ──────────
+export * from "./dom/ownerWindow";
+
 // ── Chart ───────────────────────────────────────────────────────────────────────
 export * from "./chart/ChartController";
+export * from "./chart/liveEdgeFollower";
 
 // ── Data source contracts ───────────────────────────────────────────────────────
 export * from "./data-source/types";
@@ -31,6 +35,15 @@ export * from "./feed/MockFeed";
 
 // ── ML / AI overlay contracts ───────────────────────────────────────────────────
 export * from "./ml/types";
+
+// ── Lab (pattern-similarity analytics: Echoes + Sketch Search) ──────────────────
+// Pure math + chart-coupled plugins (primitives, sketch capture, déjà-vu scan).
+export * from "./lab/types";
+export * from "./lab/similarity";
+export * from "./lab/MatchHighlightPrimitive";
+export * from "./lab/SketchStrokePrimitive";
+export * from "./lab/SketchSearchController";
+export * from "./lab/EchoesController";
 
 // ── Drawing (original engine rendered on lightweight-charts primitives) ─────────
 export * from "./drawing/types";
@@ -47,6 +60,7 @@ export * from "./measurement/ChartCoordinateUtils";
 export * from "./measurement/MeasurementController";
 export * from "./measurement/PointMarkerPrimitive";
 export * from "./measurement/PointMarkerController";
+export * from "./measurement/CrosshairMarkerPrimitive";
 
 // ── Indicators (registry + controller + built-in catalog; pluggable) ────────────
 export * from "./indicators/types";
@@ -59,6 +73,7 @@ export * from "./indicators/IndicatorController";
 // the consumer via their bundler's worker URL; here we export the client API.
 export { mainThreadCompute, createWorkerCompute, type BatchCompute, type WorkerLike, type WorkerComputeOptions } from "./indicators/compute/batchCompute";
 export { builtinIndicatorNames, type ComputeRequest, type ComputeResponse } from "./indicators/compute/indicatorWorker";
+export * from "./indicators/paneKeyRegistry";
 
 // ── Replay ──────────────────────────────────────────────────────────────────────
 export * from "./replay/types";

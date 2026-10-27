@@ -21,9 +21,19 @@ export {
   toggleFavorite as toggleIndicatorFavorite,
   type IndicatorPrefs,
 } from "./indicatorPrefs";
+export { IndicatorLegend, type IndicatorLegendProps } from "./IndicatorLegend";
+export {
+  ChartContextMenu,
+  type ChartContextMenuProps,
+  type ChartContextMenuItem,
+  type ChartContextMenuContext,
+} from "./ChartContextMenu";
 export { MeasurementOverlay, type MeasurementOverlayProps } from "./MeasurementOverlay";
+export { SketchSearchButton, type SketchSearchButtonProps } from "./SketchSearchButton";
+export { EchoesPanel, type EchoesPanelProps } from "./EchoesPanel";
 export { ReplayControls, type ReplayControlsProps } from "./ReplayControls";
 export { SplitPane, type SplitPaneProps } from "./SplitPane";
 export { useChartController } from "./hooks/useChartController";
 export { usePageTheme, type PageTheme } from "./hooks/usePageTheme";
+export { useChartTheme } from "./hooks/useChartTheme";
 export { ChartContext, useChartApi, useChartApiOptional, type ChartViewApi } from "./context";
