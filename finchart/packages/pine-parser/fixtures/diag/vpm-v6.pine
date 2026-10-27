@@ -1,0 +1,53 @@
+// © Alpha_Wizard
+//@version=6
+indicator("volume profil mtf", "vpm", overlay = true, max_bars_back = 5000, max_boxes_count = 500, max_lines_count = 500, max_labels_count = 500)
+
+gEngine = "engine"
+vpMode           = input.string("Daily", "VP Mode", options = ["Daily", "Weekly", "Monthly"], group = gEngine)
+string vpTf      = vpMode == "Daily" ? "D" : vpMode == "Weekly" ? "W" : "M"
+string vpTag     = vpMode == "Daily" ? "1D" : vpMode == "Weekly" ? "1W" : "1M"
+int chartTfSec = timeframe.in_seconds(timeframe.period)
+int vpTfSec = timeframe.in_seconds(vpTf)
+bool validChartTf = chartTfSec <= vpTfSec
+profilesHistory  = input.int(3, "Confirmed Profiles History", minval = 1, maxval = 8, group = gEngine)
+nRows    = input.int(48, "Profile Rows", minval = 12, maxval = 120)
+valuePct = input.float(70.0, "Value Area %", minval = 50, maxval = 90, step = 1)
+
+f_clamp_int(int v, int lo, int hi) =>
+    math.max(lo, math.min(hi, v))
+
+f_safeVolume(float v) =>
+    float out = nz(v, 1.0)
+    out <= 0 ? 1.0 : out
+
+var array<box> histBoxes = array.new_box()
+var array<line> histLines = array.new_line()
+var array<float> sumPocs = array.new_float()
+
+var int periodStartBar = na
+var float prevConfirmedPoc = na
+
+if na(periodStartBar)
+    periodStartBar := bar_index
+
+bool newVpPeriod = validChartTf and timeframe.change(vpTf)
+
+if barstate.islast
+    float hi = ta.highest(high, nRows)
+    float lo = ta.lowest(low, nRows)
+    float step = (hi - lo) / nRows
+    array<float> rows = array.new_float(nRows, 0.0)
+    for i = 0 to nRows - 1
+        int idx = f_clamp_int(int(math.floor((close[i] - lo) / step)), 0, nRows - 1)
+        array.set(rows, idx, array.get(rows, idx) + f_safeVolume(volume[i]))
+    int pocIdx = 0
+    float pocVol = array.get(rows, 0)
+    for k = 0 to nRows - 1
+        if array.get(rows, k) > pocVol
+            pocVol := array.get(rows, k)
+            pocIdx := k
+    float pocPrice = lo + (pocIdx + 0.5) * step
+    box b = box.new(bar_index - nRows, hi, bar_index, lo, xloc = xloc.bar_index, border_color = color.gray, bgcolor = color.new(color.blue, 80))
+    array.push(histBoxes, b)
+    line pocLine = line.new(bar_index - nRows, pocPrice, bar_index, pocPrice, xloc = xloc.bar_index, color = color.red, width = 2)
+    array.push(histLines, pocLine)

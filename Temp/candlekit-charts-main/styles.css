@@ -1,0 +1,600 @@
+/*
+ * @getcandlekit/charts — optional styles for the bundled React overlay components
+ * (DrawingToolbar, IndicatorPicker, ReplayControls). Import once:
+ *
+ *   import "@getcandlekit/charts/styles.css";
+ *
+ * Everything is namespaced under `.ck-*` and driven by CSS variables so you can
+ * theme it without overriding individual rules.
+ */
+
+/* Palette mirrors the host trading-dashboard design tokens (shadcn HSL) so the
+ * overlay chrome matches it exactly. Light = :root, dark = [data-theme="dark"]
+ * / .dark. */
+:root {
+  --ck-bg: hsl(0 0% 100% / 0.82);
+  --ck-fg: hsl(224 24% 12%);
+  --ck-muted: hsl(215 16% 40%);
+  --ck-border: hsl(220 13% 88%);
+  --ck-accent: hsl(188 85% 38%);
+  --ck-accent-fg: hsl(0 0% 100%);
+  --ck-up: hsl(142 65% 38%);
+  --ck-down: hsl(350 75% 48%);
+  --ck-warn: hsl(38 92% 45%);
+  --ck-radius: 6px;
+}
+
+[data-theme="dark"],
+.dark {
+  --ck-bg: hsl(224 22% 9% / 0.82);
+  --ck-fg: hsl(210 30% 96%);
+  --ck-muted: hsl(215 16% 60%);
+  --ck-border: hsl(224 16% 16%);
+  --ck-accent: hsl(188 95% 55%);
+  --ck-accent-fg: hsl(224 30% 8%);
+  --ck-up: hsl(142 72% 50%);
+  --ck-down: hsl(350 89% 60%);
+  --ck-warn: hsl(38 92% 55%);
+}
+
+/* ── Drawing toolbar ───────────────────────────────────────────────────────── */
+/* Flush-left vertical sidebar, parity with the host trading-dashboard toolbar:
+ * pinned to the chart's top-left corner (no inset), right/bottom border only,
+ * rounded bottom-right. */
+.ck-toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 36px;
+  padding: 4px 2px;
+  background: color-mix(in srgb, var(--ck-bg) 92%, transparent);
+  backdrop-filter: blur(6px);
+  border-right: 1px solid color-mix(in srgb, var(--ck-border) 60%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--ck-border) 60%, transparent);
+  border-radius: 0 0 8px 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+/* Thin divider between tool groups (line tools · shapes · fib). */
+.ck-toolbar-sep {
+  height: 1px;
+  margin: 3px 4px;
+  background: color-mix(in srgb, var(--ck-border) 50%, transparent);
+}
+.ck-toolbar-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--ck-muted);
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: color 0.1s, background-color 0.1s, box-shadow 0.1s;
+}
+.ck-toolbar-btn:hover {
+  background: color-mix(in srgb, var(--ck-muted) 14%, transparent);
+  color: var(--ck-fg);
+}
+.ck-toolbar-btn[data-active] {
+  background: color-mix(in srgb, var(--ck-accent) 15%, transparent);
+  color: var(--ck-accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ck-accent) 35%, transparent);
+}
+
+/* ── Indicator picker (dropdown) ───────────────────────────────────────────── */
+.ck-ind {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 12;
+  font-size: 12px;
+  color: var(--ck-fg);
+}
+/* Docked variant: the picker is placed inside a chart-toolbar dock (top-left)
+ * rather than floating in its own corner. Drop the absolute corner pin and open
+ * the dropdown left-aligned under the trigger so it stays on-canvas. */
+.ck-ind--docked {
+  position: relative;
+  top: auto;
+  right: auto;
+}
+.ck-ind--docked .ck-ind-panel {
+  left: 0;
+  right: auto;
+}
+.ck-ind-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  color: var(--ck-fg);
+  background: var(--ck-bg);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--ck-border);
+  border-radius: var(--ck-radius);
+  cursor: pointer;
+  font: inherit;
+}
+.ck-ind-trigger:hover {
+  border-color: var(--ck-accent);
+}
+.ck-ind-trigger-icon {
+  font-style: italic;
+  font-weight: 700;
+  color: var(--ck-accent);
+}
+.ck-ind-count {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ck-accent-fg);
+  background: var(--ck-accent);
+}
+.ck-ind-caret {
+  color: var(--ck-muted);
+  font-size: 10px;
+}
+.ck-ind-panel {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  width: 280px;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  background: var(--ck-bg);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--ck-border);
+  border-radius: var(--ck-radius);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.ck-ind-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ck-border);
+}
+.ck-ind-title {
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.ck-ind-x {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  background: transparent;
+  color: var(--ck-muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.ck-ind-x:hover {
+  background: rgba(127, 127, 127, 0.16);
+  color: var(--ck-fg);
+}
+.ck-ind-search {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ck-border);
+}
+.ck-ind-search input {
+  width: 100%;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ck-fg);
+  background: color-mix(in srgb, var(--ck-fg) 8%, transparent);
+  border: 1px solid var(--ck-border);
+  border-radius: 4px;
+  outline: none;
+}
+.ck-ind-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--ck-border);
+}
+.ck-ind-tab {
+  padding: 4px 7px 6px;
+  font: inherit;
+  font-size: 10px;
+  color: var(--ck-muted);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.ck-ind-tab--active {
+  color: var(--ck-accent);
+  border-bottom-color: var(--ck-accent);
+}
+.ck-ind-tab-count {
+  opacity: 0.5;
+  margin-left: 2px;
+}
+.ck-ind-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.ck-ind-empty {
+  padding: 28px 0;
+  text-align: center;
+  color: var(--ck-muted);
+}
+.ck-ind-item {
+  border-bottom: 1px solid color-mix(in srgb, var(--ck-border) 50%, transparent);
+}
+.ck-ind-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+}
+.ck-ind-row:hover {
+  background: rgba(127, 127, 127, 0.08);
+}
+.ck-ind-row--active {
+  background: color-mix(in srgb, var(--ck-accent) 8%, transparent);
+}
+.ck-ind-chev {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  background: transparent;
+  color: var(--ck-muted);
+  cursor: pointer;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.ck-ind-chev--hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+.ck-ind-name {
+  flex: 1;
+  min-width: 0;
+}
+.ck-ind-name-title {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ck-ind-name-short {
+  font-size: 9px;
+  color: var(--ck-muted);
+  line-height: 1.2;
+}
+.ck-ind-cat {
+  font-size: 8px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  letter-spacing: 0.04em;
+}
+.ck-ind-cat--overlay {
+  color: #4f8cff;
+  background: rgba(79, 140, 255, 0.14);
+}
+.ck-ind-cat--oscillator {
+  color: var(--ck-warn);
+  background: color-mix(in srgb, var(--ck-warn) 14%, transparent);
+}
+.ck-ind-cat--pattern {
+  color: #c084fc;
+  background: rgba(192, 132, 252, 0.14);
+}
+.ck-ind-switch {
+  width: 28px;
+  height: 15px;
+  border: 0;
+  border-radius: 999px;
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--ck-fg) 28%, transparent);
+  transition: background 0.15s;
+}
+.ck-ind-switch--on {
+  background: var(--ck-accent);
+}
+.ck-ind-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.ck-ind-switch--on .ck-ind-knob {
+  transform: translateX(13px);
+}
+.ck-ind-params {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 10px 26px;
+  background: color-mix(in srgb, var(--ck-fg) 5%, transparent);
+}
+.ck-ind-param {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ck-ind-param-label {
+  width: 78px;
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--ck-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ck-ind-param input[type="number"],
+.ck-ind-param select {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 10px;
+  color: var(--ck-fg);
+  background: var(--ck-bg);
+  border: 1px solid var(--ck-border);
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+.ck-ind-param-sep {
+  height: 1px;
+  margin: 2px 0;
+  background: color-mix(in srgb, var(--ck-border) 60%, transparent);
+}
+.ck-ind-color input[type="color"] {
+  width: 24px;
+  height: 20px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid var(--ck-border);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.ck-ind-color-value {
+  font-size: 9px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--ck-muted);
+}
+.ck-ind-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-top: 1px solid var(--ck-border);
+  font-size: 9px;
+  color: var(--ck-muted);
+}
+.ck-ind-clear {
+  border: 0;
+  background: transparent;
+  color: var(--ck-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 9px;
+}
+.ck-ind-clear:hover {
+  color: var(--ck-down);
+}
+
+/* ── Measurement readout (Shift-drag ruler) ────────────────────────────────── */
+.ck-measure-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+.ck-measure {
+  position: absolute;
+  padding: 6px 10px;
+  font-family: inherit;
+  color: var(--ck-muted);
+  background: var(--ck-bg);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--ck-border);
+  border-radius: var(--ck-radius);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+.ck-measure--up {
+  border-color: color-mix(in srgb, var(--ck-up) 40%, transparent);
+}
+.ck-measure--down {
+  border-color: color-mix(in srgb, var(--ck-down) 40%, transparent);
+}
+.ck-measure-pct {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.1;
+  margin-bottom: 3px;
+}
+.ck-measure--up .ck-measure-pct {
+  color: var(--ck-up);
+}
+.ck-measure--down .ck-measure-pct {
+  color: var(--ck-down);
+}
+.ck-measure-pts {
+  font-size: 12px;
+}
+.ck-measure--up .ck-measure-pts {
+  color: var(--ck-up);
+}
+.ck-measure--down .ck-measure-pts {
+  color: var(--ck-down);
+}
+.ck-measure-meta {
+  font-size: 11px;
+  color: var(--ck-muted);
+}
+
+/* ── Replay panel ──────────────────────────────────────────────────────────── */
+.ck-replay {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  font-size: 12px;
+  color: var(--ck-fg);
+  background: var(--ck-bg);
+  border: 1px solid var(--ck-border);
+  border-radius: var(--ck-radius);
+}
+.ck-replay-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ck-replay-title {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+  color: var(--ck-muted);
+}
+.ck-replay-badge {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--ck-border);
+  color: var(--ck-muted);
+}
+.ck-replay-badge--ready {
+  color: var(--ck-warn);
+  background: color-mix(in srgb, var(--ck-warn) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ck-warn) 40%, transparent);
+}
+.ck-replay-badge--loading {
+  color: var(--ck-accent);
+  background: color-mix(in srgb, var(--ck-accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ck-accent) 40%, transparent);
+}
+.ck-replay-badge--error {
+  color: var(--ck-down);
+  background: color-mix(in srgb, var(--ck-down) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ck-down) 40%, transparent);
+}
+.ck-replay-clock {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.ck-replay-time {
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.ck-replay-bar {
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ck-fg) 12%, transparent);
+}
+.ck-replay-bar-fill {
+  height: 100%;
+  background: var(--ck-warn);
+}
+.ck-replay-range {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--ck-muted);
+  font-variant-numeric: tabular-nums;
+}
+.ck-replay-transport {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ck-replay-btn {
+  height: 28px;
+  padding: 0 10px;
+  color: var(--ck-fg);
+  background: transparent;
+  border: 1px solid var(--ck-border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.ck-replay-btn:hover:not(:disabled) {
+  background: rgba(127, 127, 127, 0.14);
+}
+.ck-replay-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ck-replay-btn--play {
+  color: var(--ck-up);
+  border-color: color-mix(in srgb, var(--ck-up) 45%, transparent);
+  font-weight: 600;
+}
+.ck-replay-btn--pause {
+  color: var(--ck-warn);
+  border-color: color-mix(in srgb, var(--ck-warn) 45%, transparent);
+  font-weight: 600;
+}
+.ck-replay-speed {
+  margin-left: auto;
+  height: 28px;
+  color: var(--ck-fg);
+  background: transparent;
+  border: 1px solid var(--ck-border);
+  border-radius: 4px;
+}
+.ck-replay-seek {
+  width: 100%;
+}
+.ck-replay-jumps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.ck-replay-jump {
+  padding: 4px 0;
+  font-size: 10px;
+  color: var(--ck-fg);
+  background: transparent;
+  border: 1px solid var(--ck-border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.ck-replay-jump:hover:not(:disabled) {
+  background: rgba(127, 127, 127, 0.14);
+}
+.ck-replay-jump:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ck-replay-error {
+  color: var(--ck-down);
+  font-size: 11px;
+}

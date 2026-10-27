@@ -1,0 +1,27 @@
+[submodule "pine-corpus/repos/Pinescript-Laboratory"]
+	path = pine-corpus/repos/Pinescript-Laboratory
+	url = https://github.com/capissimo/Pinescript-Laboratory
+[submodule "pine-corpus/repos/TradingView-Proprietary-Indicators"]
+	path = pine-corpus/repos/TradingView-Proprietary-Indicators
+	url = https://github.com/harryguiacorn/TradingView-Proprietary-Indicators
+[submodule "pine-corpus/repos/arun-pinescript"]
+	path = pine-corpus/repos/arun-pinescript
+	url = https://github.com/ArunKBhaskar/PineScript
+[submodule "pine-corpus/repos/pinescript-strategies"]
+	path = pine-corpus/repos/pinescript-strategies
+	url = https://github.com/Alorse/pinescript-strategies
+[submodule "pine-corpus/repos/pinescript"]
+	path = pine-corpus/repos/pinescript
+	url = https://github.com/mihakralj/pinescript
+[submodule "pine-corpus/repos/ricardosantos-pinescript"]
+	path = pine-corpus/repos/ricardosantos-pinescript
+	url = https://github.com/ricardosantos79/pinescript
+[submodule "pine-corpus/repos/tradingview-custom-indicators"]
+	path = pine-corpus/repos/tradingview-custom-indicators
+	url = https://github.com/f13end/tradingview-custom-indicators
+[submodule "pine-corpus/repos/tradingview-pine-scripts"]
+	path = pine-corpus/repos/tradingview-pine-scripts
+	url = https://github.com/hasnocool/tradingview-pine-scripts
+[submodule "pine-corpus/repos/tradingview-pinescript-indicators"]
+	path = pine-corpus/repos/tradingview-pinescript-indicators
+	url = https://github.com/everget/tradingview-pinescript-indicators

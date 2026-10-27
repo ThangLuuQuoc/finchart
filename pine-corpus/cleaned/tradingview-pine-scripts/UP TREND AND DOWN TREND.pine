@@ -1,0 +1,8 @@
+//@version=5
+strategy("UP TREND AND DOWN TREND", overlay=true, margin_long=100, margin_short=100)
+longCondition = ta.crossover(ta.sma(close, 20), ta.sma(close, 200))
+if (longCondition)
+    strategy.entry("UP TREND", strategy.long)
+shortCondition = ta.crossunder(ta.sma(close, 20), ta.sma(close, 200))
+if (shortCondition)
+    strategy.entry("DOWN TREND", strategy.short)

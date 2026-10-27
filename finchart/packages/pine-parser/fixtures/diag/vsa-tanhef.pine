@@ -1,0 +1,1413 @@
+//████████╗ █████╗ ███╗  ██╗██╗  ██╗███████╗███████╗
+//╚══██╔══╝██╔══██╗████╗ ██║██║  ██║██╔════╝██╔════╝
+//   ██║   ███████║██╔██╗██║███████║█████╗  █████╗
+//   ██║   ██╔══██║██║╚████║██╔══██║██╔══╝  ██╔══╝
+//   ██║   ██║  ██║██║ ╚███║██║  ██║███████╗██║
+//   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚══╝╚═╝  ╚═╝╚══════╝╚═╝
+//@version=5
+indicator('Volume Spread Analysis [TANHEF]', overlay=false, max_labels_count=500, max_lines_count = 500)
+
+//Library of functions for Volume Spread Analysis
+import TanHef/VolumeSpreadAnalysis/2 as vpa
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//GENERAL DISPLAY SETTINGS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const string g_display = 'General Display Options'
+
+//INPUTS - Volume or Spread
+const string o_spread  = '📏Spread'
+const string o_volume  = '📊Volume'
+const string o_both50  = '📊📏All (Volume All & Spread 50 bars)'
+const string o_both100 = '📊📏All (Volume All & Spread 100 bars)'
+const string o_both250 = '📊📏All (Volume All & Spread 250 bars)'
+const string o_both500 = '📊📏All (Volume All & Spread 500 bars)'
+const string tt_bars   = 
+ "(Emojis used to reduce selection errors)
+ \n\n■ Volume or Spread
+ \n📏Spread: Spread Indicator Bars.
+ \n📊Volume: Volume Indicator Bars.
+ \n📏📊All: Volume Indicator Bars and Spread Lines.
+ \n\nIf both spread and volume (All) are displayed at the same time, the volume is displaying using bar plots while the spread is displayed as dynamic lines that auto scale to the highest volume level given spread's number of bars selected to be displayed. This indicator's bars and moving averages correspond to this selection.
+ \n\nWhile automatic calculation of the number of visual bars for auto scaling is possible, it is avoided to prevent the indicator from reloading whenever the number of visual price bars on the chart is adjusted, ensuring uninterrupted analysis. A displayable table (Legend) of bar colors and levels can give context and clarify to each volume/spread bar."
+displaySpreadVAL               = input.string(o_volume, title="Show Volume and/or Spread", options=[o_volume,o_spread,o_both50,o_both100,o_both250,o_both500], inline='1', group=g_display, tooltip=tt_bars)
+var bool displaySpread         = displaySpreadVAL == o_spread ? true : false
+var bool displaySpreadLines    = displaySpreadVAL == o_both50 or displaySpreadVAL == o_both100 or displaySpreadVAL == o_both250 or displaySpreadVAL == o_both500 ? true : false
+var int displaySpreadCount     = displaySpreadVAL == o_both50 ? 50 : displaySpreadVAL == o_both100 ? 100 : displaySpreadVAL == o_both250 ? 250 : 500
+
+//TOOLTIPS - Volume or Spread
+const string tt_Colors = 
+ "■ Bar Color (modifiable later in settings)
+ \n-Normal: Colors for only bull/bear
+ \n   bull = green
+ \n   bear = red
+ \n-Detail: Colors for levels (includes bull/bear)
+ \n   low = very dark green / very dark red
+ \n   average = green / red
+ \n   high = dark green / dark red
+ \n   ultra = bright green / bright red
+ \n-Levels: Colors for levels (ignores bull/bear)
+ \n   low = blue 
+ \n   average = lime
+ \n   high = yellow
+ \n   ultra = red
+ \n■ MA Color (modifiable later in settings)
+ \n   Blue line = average
+ \n   Blue Area = in between high and ultra
+ \n   Grey Area = in between low and high"
+
+//INPUT - Bar Color
+const string o_normal              = "Normal Colors"
+const string o_levels              = "Levels Colors"
+const string o_detailed            = "Detail Colors (Normal,Low,High,Ultra)"
+const string o_detailed_high_ultra = "Detail Colors (Normal,High,Ultra)"
+const string o_detailed_ultra      = "Detail Colors (Normal,Ultra)"
+const string o_detailed_low        = "Detail Colors (Normal,Low)"
+colorType = input.string(o_detailed,title='Bars',inline='col',group=g_display,options=[o_normal,o_levels,o_detailed,o_detailed_high_ultra,o_detailed_ultra,o_detailed_low])
+
+//INPUT - MOVING AVERAGE FILLS
+const string o_Fill      = 'Fill'
+const string o_LinesAll  = 'Lines (all)'
+const string o_LineMA    = 'Line (MA only)'
+const string o_NoneFill  = 'None'
+movingAverageColorType = input.string(o_Fill,title='MA',inline='col',group=g_display,options=[o_Fill,o_LinesAll,o_LineMA,o_NoneFill])
+
+//INPUTS - Candle Colors
+const string o_VSA   = 'VSA'
+const string o_High  = 'High'
+const string o_Ultra = 'Ultra'
+const string o_Low   = 'Low'
+const string o_None  = 'None'
+const string tt_displayBarColorVal =
+ "\n■ Price Color (modifiable later in settings)
+ \n -VSA: VSA patterns selected.
+ \n -High: Color candles if high or ultra.
+ \n -Ultra: Color candles if ultra.
+ \n -Low: Color candles if low.
+ \n -None: Color candles are turned off.\n\n"
+const string tt_priceColor = 
+ "Price Colors
+ \n  Yellow: Sign of Strength (or bull low/high/ultra)
+ \n  Purple: Sign of Weakness (or bear low/high/ultra)
+ \n  Blue: Neutral. Not visible unless zoomed in.
+ \n  Black: Multiple VSA patterns at once (S,W,N)."
+displayBarColorVal = input.string('None',options=[o_VSA,o_High,o_Ultra,o_Low,o_None],title='Price',inline='col',group=g_display,tooltip=tt_Colors+tt_displayBarColorVal+tt_priceColor)
+
+//INPUTS - Legend
+const string tt_ColorType_legend = 
+ "■ Legend
+ \nShow table of bar colors, levels, or volume/spread relative to average.
+ \n\n■ Legend Type
+ \n-Colors: colored text table describing bar color meanings, which does also also match the Volume and Spread levels to the 'Bars' color selection.
+ \n-Levels: indicates if current bar's Volume and Spread levels are low, normal, high, or ultra.
+ \n-Levels 2: indicates if current bar's and prior bar's Volume and Spread levels are low, normal, high, or ultra.
+ \n-Levels 3: indicates if current bar's, prior bar's, and 2 bars prior's Volume and Spread levels are low, normal, high, or ultra.
+ \n-Mult 1: volume and spread relative to average for current bar.
+ \n-Mult 2: volume and spread relative to average for prior bar and current bar.
+ \n-Mult 3: volume and spread relative to average for 2 bars prior, prior bar, and current bar.
+ \n\nIdentifiers for volume and spread:
+ \n📊 = Volume
+ \n📏 = Spread"
+displayLegend    = input(false,           title='Legend', group=g_display, inline='Legend', tooltip=tt_ColorType_legend)
+displayLegendVAL = input.string('Colors', title='',       group=g_display, inline='Legend', options=['Colors','Levels','Levels 2','Levels 3','Mult 1','Mult 2','Mult 3'])
+var bool displayLegendColors  = displayLegend and displayLegendVAL == 'Colors'   ? true : false
+var bool displayLegendLevels  = displayLegend and displayLegendVAL == 'Levels'   ? true : false
+var bool displayLegendLevels2 = displayLegend and displayLegendVAL == 'Levels 2' ? true : false
+var bool displayLegendLevels3 = displayLegend and displayLegendVAL == 'Levels 3' ? true : false
+var bool displayLegendMult1   = displayLegend and displayLegendVAL == 'Mult 1'   ? true : false
+var bool displayLegendMult2   = displayLegend and displayLegendVAL == 'Mult 2'   ? true : false
+var bool displayLegendMult3   = displayLegend and displayLegendVAL == 'Mult 3'   ? true : false
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//FORECAST DISPLAY SETTINGS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const string g_forecastDisplay = 'Forecast Display Options'
+
+//INPUTS - Forecast
+const string tt_forecast = 
+ "■ Forecast (show predicted level at bar close)
+ \n\nThe following requires 'Forecast' selected:
+ \n■ ⁒ (Bar Elapsed Time Percent)
+ \n■ x (Multiplier, level relative to MA)
+ \n■ Level (Area in between levels)
+ \n■ Color (Forecast level sets label's color)
+ \n■ Instance (🔎Forecast and/or ✅Current)
+ \n(Current also referred to as known or now)
+ \n\n•Volume Forecast: assumes volume rate persists and uses current volume and bar time till close.
+ \n•Spread Forecast: dynamically applies a multiplier (set later in settings), indicating that spread increases less when price is near the midpoint and more near low or high. In addition to these assumptions, the price change for spread to increase is also accounted for.
+ \n•Moving Average: sourced from the bar's forecasted level instead current level. Ensures forecasting correct state (low,normal,high,ultra)."
+const string o_forecast_forecastCurrent = 'Both (Forecast & Current)'
+const string o_forecast_forecastOnly    = 'Forecast Only'
+const string o_forecast_currentOnly     = 'Current Only'
+displayForecast        = input(true,                              title='Forecast',  inline='forecast', group=g_forecastDisplay, tooltip=tt_forecast)
+displayForecastPercent = input(true,                              title='⁒',         inline='forecast', group=g_forecastDisplay)
+displayForecastMult    = input(true,                              title='x',         inline='forecast', group=g_forecastDisplay)
+displayForecastLevel   = input(true,                              title='Level',     inline='forecast', group=g_forecastDisplay)
+displayForecastColor   = input(true,                              title='Color',     inline='forecast', group=g_forecastDisplay)
+displayForecastVAL     = input.string(o_forecast_forecastCurrent, title='│Instance', inline='forecast', group=g_forecastDisplay, options=[o_forecast_forecastCurrent,o_forecast_forecastOnly,o_forecast_currentOnly])
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//VOLUME LEVEL SETTINGS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const string g_volume = 'Volume Settings (Multipliers and Moving Average)'
+
+//INPUTS - High & Ultra Volume
+const string tt_multVolume =
+ "Volume Multipliers
+ \nDetermines levels low, high, ultra.
+ \n\n■ Low
+ \nMultiplier for 'Low' average value.
+ \n\n■ High
+ \nMultiplier for 'High' average value.
+ \n\n■ Ultra
+ \nMultiplier for 'Ultra' average value.
+ \n\nNormal's multipler is 1, as it represents the average, it is between 'Low' and 'High'"
+const string tt_VolumeMA = 
+ "Volume Moving Average (MA)
+ \nDetermines average (normal) volume level
+ \n\n■ Length of MA
+ \n■ Type of MA"
+multVolumeLow   = input.float(0.5,      title='Low',  step=0.1,minval=0,maxval=1,group=g_volume,inline='VolumeMult')
+multVolumeHigh  = input.float(1.5,      title='High', step=0.1,minval=1,         group=g_volume,inline='VolumeMult')
+multVolumeUltra = input.float(3.0,      title='Ultra',step=0.1,minval=1,         group=g_volume,inline='VolumeMult',tooltip=tt_multVolume)
+maLengthVolume  = input.int(20,         title='MA Length',   minval=1,           group=g_volume,inline='VolumeMA', tooltip=tt_VolumeMA)
+maTypeVolume    = input.string("SMA",   title='Type',                            group=g_volume,inline='VolumeMA', options=["SMA", "EMA", "SMMA (RMA)", "WMA"])
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//SPREAD LEVEL SETTINGS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const string g_spread = 'Spread Settings (Multipliers and Moving Average)'
+
+//INPUTS - MOVING AVERAGES
+const string tt_multSpread =
+ "Spread Multipliers
+ \nDetermines levels low, high, ultra.
+ \n\n■ Low
+ \nMultiplier for 'Low' average value.
+ \n\n■ High
+ \nMultiplier for 'High' average value.
+ \n\n■ Ultra
+ \nMultiplier for 'Ultra' average value.
+ \n\nNormal's multipler is 1, as it represents the average, it is between 'Low' and 'High'"
+const string tt_SpreadMA = 
+ "Spread Moving Average (MA)
+ \nDetermines average (normal) spread level
+ \n\n■ Length of MA
+ \n■ Type of MA"
+multSpreadLow   = input.float(0.5,      title='Low',  step=0.1,minval=0,maxval=1,group=g_spread,inline='SpreadMult')
+multSpreadHigh  = input.float(1.5,      title='High', step=0.1,minval=1,         group=g_spread,inline='SpreadMult')
+multSpreadUltra = input.float(3.0,      title='Ultra',step=0.1,minval=1,         group=g_spread,inline='SpreadMult',tooltip=tt_multSpread)
+maLengthSpread  = input.int(5,          title='MA Length',     minval=1,         group=g_spread,inline='SpreadMA', tooltip=tt_SpreadMA)
+maTypeSpread    = input.string("SMA",   title='Type',                            group=g_spread,inline='SpreadMA', options=["SMA", "EMA", "SMMA (RMA)", "WMA"])
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//SIGN OF STRENGTH - TOOLTIPS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// TOOLTIPS - 🟢Sign of Strength (S)
+const string tt_S_DownThrust = 
+ "Spread: Below average.
+ \nVolume: High.
+ \nCandle: Bull Pin Bar (Criteria in 'Bar Settings').
+ \n\nIndicates strong buying interest at lower prices, suggesting a potential upward reversal."
+
+const string tt_S_SellingClimax = 
+ "Spread: Above average.
+ \nVolume: High.
+ \nCandle: Bearish with 25% lower rejection wick.
+ \n\nSignifies a reversal point as panic selling exhausts and smart money starts accumulating."
+
+const string tt_S_ResultNoEffort = 
+ "Spread: Higher than prior bar.
+ \nVolume: Lower than prior bar.
+ \nCandle: 2 consecutive bearish (prior and current).
+ \n\nA large downward price move without strong selling effort (volume) indicaties an anomaly where the result doesn't match the effort, suggesting the down move may be unsustained."
+
+const string tt_S_EffortNoResult = 
+ "Spread: Lower than prior bar.
+ \nVolume: Higher than prior bar.
+ \nCandle: 2 consecutive bearish (prior and current).
+ \n\nStrong selling effort (volume) fails to push prices down indicating an anomaly where the result doesn't match the effort, suggesting a potential lack of downward momentum."
+
+const string tt_S_InverseDownThrust = 
+ "Spread: Lower than prior bar.
+ \nVolume: Above average.
+ \nCandle: Bear Pin Bar (Criteria in 'Bar Settings').
+ \n\nShows buyers overpowering sellers, likely leading to a bullish market reversal."
+
+const string tt_S_FailedSellingClimax = 
+ "Spread: Prior bar higher than 2 bars prior.
+ \nVolume: Prior bar higher than 2 bars prior.
+ \nCandle: 2 consecutive bearish followed by bullish (2 bars prior bearish, prior bearish, current bullish).
+ \n\nFailed selling effort suggests strong buying support and a possible upward trend reversal."
+
+const string tt_S_BullOutsideReversal = 
+ "Spread: Higher than prior.
+ \nVolume: High.
+ \nCandle: Prior bearish, current bullish.
+ \n(low wick < prior low wick) (close > prior high)
+ \n\nIndicates strong buying reversing a downtrend, confirmed by higher close."
+
+const string tt_S_EndOfFallingMarket = 
+ "Spread: Below average.
+ \nVolume: Ultra.
+ \nCandle: Bearish.
+ \n\nSignifies strong buying absorbs panic selling at new lows, likely leading to stabilized price or reversal."
+
+const string tt_S_PseudoDownThrust = 
+ "Spread: Lower than prior.
+ \nVolume: Lower than both prior and 2 bars prior.
+ \nCandle: Bull Pin Bar (Criteria in 'Bar Settings').
+ \n\nSuggests weakening of the downward momentum with a potential upward continuation if broken above high."
+
+const string tt_S_NoSupply = 
+ "Spread: Lower than both prior and 2 bars prior.
+ \nVolume: Lower than both prior and 2 bars prior.
+ \nCandle: Bull Pin Bar (Criteria in 'Bar Settings').
+ \n\nIndicates a lack of selling interest at lower prices, potentially setting up for a price rise."
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//SIGN OF WEAKNESS - TOOLTIPS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// TOOLTIPS - 🔴Sign of Weakness (W)
+const string tt_W_UpThrust = 
+ "Spread: Below average.
+ \nVolume: High.
+ \nCandle: Bear Pin Bar (Criteria in 'Bar Settings').
+ \n\nIndicates sellers overpowering buyers during a price rise, suggesting a potential downward reversal."
+
+const string tt_W_BuyingClimax = 
+ "Spread: Above average.
+ \nVolume: High.
+ \nCandle: Bearish with >25% upper rejection wick.
+ \n\nRepresents peak buying, typically at price highs, with potential for reversal as sellers take control."
+
+const string tt_W_ResultNoEffort = 
+ "Spread: Higher than prior bar.
+ \nVolume: Lower than prior bar.
+ \nCandle: 2 consecutive bullish (prior and current).
+ \n\nA large upward price move without strong buying pressure (volume) indicates an anomaly where the result doesn't match the effort, suggesting the up move may be unsustained."
+
+const string tt_W_EffortNoResult = 
+ "Spread: Lower than prior.
+ \nVolume: Higher than prior.
+ \nCandle: 2 consecutive bullish (prior and current).
+ \n\nStrong buying (volume) fails to drive prices higher indicates an anomaly where the result doesn't match the effort, suggesting a potential lack of upward momentum."
+
+const string tt_W_InverseUpThrust = 
+ "Spread: Lower than prior.
+ \nVolume: Above average.
+ \nCandle: Bull Pin Bar (Criteria in 'Bar Settings').
+ \n\nIncreased selling pressure during an uptrend suggests a possible shift to a downtrend."
+
+const string tt_W_FailedBuyingClimax = 
+ "Spread: Prior bar higher than 2 bars prior.
+ \nVolume: Prior bar higher than 2 bars prior.
+ \nCandle: 2 consecutive bullish followed by a bearish (2 bars prior bullish, prior bullish, current bearish).
+ \n\nHigh buying volume fails to sustain higher prices, indicating a potential reversal to downtrend."
+
+const string tt_W_BearOutsideReversal =
+ "Spread: Higher than prior.
+ \nVolume: High.
+ \nCandle: Prior bullish, current bearish.
+ \n(high wick > prior high wick) (close < prior low)
+ \n\nStrong selling pressure reversing an uptrend, signaling a potential downtrend."
+
+const string tt_W_EndOfRisingMarket = 
+ "Spread: Below average.
+ \nVolume: Ultra.
+ \nCandle: Bullish.
+ \n\nIndicates buying saturation at market peaks, suggesting a possible reversal as demand exhausts."
+
+const string tt_W_PseudoUpThrust = 
+ "Spread: Lower than prior.
+ \nVolume: Lower than both prior and 2 bars prior.
+ \nCandle: Bear Pin Bar (Criteria in 'Bar Settings').
+ \n\nIndicates weakening upward momentum with potential for downward continuation if broken below low."
+
+const string tt_W_NoDemand = 
+ "Spread: Lower than both prior and 2 bars prior.
+ \nVolume: Lower than both prior and 2 bars prior.
+ \nCandle: Bear Pin Bar (Criteria in 'Bar Settings').
+ \n\nIndicates reduced buying interest at higher prices, possibly leading to a price decline."
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//NEUTRAL - TOOLTIPS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// TOOLTIPS - 🔵NEUTRAL (N)
+const string tt_N_QuietDoji = 
+ "Spread: Lower than prior.
+ \nVolume: Lower than both prior and 2 bars prior.
+ \nCandle: Doji (Criteria in 'Bar Settings').
+ \n\nIndicates market balance and indecision due to low interest and movement.
+ \n\nNote: A close outside of this bar's high or low could be used as direction confirmation."
+
+const string tt_N_BalancedDoji = 
+ "Spread: Average.
+ \nVolume: Average.
+ \nCandle: Doji (Criteria in 'Bar Settings').
+ \n\nRepresents equilibrium between buyers and sellers, often at critical turning points. Future direction depends on subsequent bars.
+ \n\nNote: A close outside of this bar's high or low could be used as direction confirmation."
+
+const string tt_N_StrongDoji = 
+ "Spread: Lower than prior.
+ \nVolume: Higher than both prior and 2 bars prior.
+ \nCandle: Doji (Criteria in 'Bar Settings').
+ \n\nIndicates market balance and indecision through aggressive volume and a struggle for price to move in either direction.
+ \n\nNote: A close outside of this bar's high or low could be used as direction confirmation."
+
+const string tt_N_QuietSpinningTop = 
+ "Spread: Lower than prior.
+ \nVolume: Lower than both prior and 2 bars prior.
+ \nCandle: Spinning Top (Criteria in 'Bar Settings').
+ \n\nIndicates market balance and indecision due to low interest and movement.
+ \n\nNote: A close outside of this bar's high or low could be used as direction confirmation."
+
+const string tt_N_BalancedSpinningTop = 
+ "Spread: Average.
+ \nVolume: Average.
+ \nCandle: Spinning Top (Criteria in 'Bar Settings').
+ \n\nReflects a balanced state in the market, showing neither buyers nor sellers have the upper hand. Often appears at critical junctures, indicating potential continuation or reversal.
+ \n\nNote: A close outside of this bar's high or low could be used as direction confirmation."
+
+const string tt_N_StrongSpinningTop = 
+ "Spread: Lower than prior.
+ \nVolume: Higher than both prior and 2 bars prior.
+ \nCandle: Spinning Top (Criteria in 'Bar Settings').
+ \n\nIndicates market balance and indecision through aggressive volume and a struggle for price to move in either direction.
+ \n\nNote: A close outside of this bar's high or low could be used as direction confirmation."
+
+const string tt_N_QuietHighWave = 
+ "Spread: Wider than all recent bars (input set).
+ \nVolume: Lower than both prior and 2 bars prior.
+ \nCandle: High Wave (Criteria in 'Bar Settings').
+ \n\nIndicates a period of significant price volatility but low trading interest, suggesting indecision with minimal market commitment. The candle's long wicks indicate tested but rejected price extremes.
+ \n\nNote: A close outside of this bar's high or low could be used as direction confirmation."
+
+const string tt_N_BalancedHighWave = 
+ "Spread: Average & Wider than all recent bars (input set).
+ \nVolume: Average.
+ \nCandle: High Wave (Criteria in 'Bar Settings').
+ \n\nShows balanced volatility and trading activity, indicating a state of equilibrium in the market. This pattern often appears when the market is preparing for a significant move in either direction.
+ \n\nNote: A close outside of this bar's high or low could be used as direction confirmation."
+
+const string tt_N_StrongHighWave = 
+ "Spread: Wider than all recent bars (input set).
+ \nVolume: Higher than both prior and 2 bars prior.
+ \nCandle: High Wave (Criteria in 'Bar Settings').
+ \n\nReflects a volatile trading session with high volume, indicating intense indecision and struggle between buyers and sellers. The extended wicks show significant attempts to push prices both upwards and downwards, ultimately closing near the open.
+ \n\nNote: A close outside of this bar's high or low could be used as direction confirmation."
+
+const string tt_N_Consolidation = 
+ "Spread: Narrow range (Criteria in 'Bar Settings').
+ \nVolume: Lower than average.
+ \nCandles: Multiple small (Criteria in 'Bar Settings').
+ \n\nIndicates a period of low volatility and trading activity, suggesting potential for a significant move upon breakout.
+ \n\nNote: A breakout above or below the consolidation range could be used as direction confirmation."
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//BAR PATTERNS - TOOLTIPS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// TOOLTIPS - 🟡Bar Patterns (B)
+const string tt_B_BullPinBar = 
+ "Bull Pin Bar. Can indicate a bullish reversal with a long lower wick and a small body near the top.
+ \n(No volume requirement, settings in 'Bar Settings')"
+
+const string tt_B_BearPinBar = 
+ "Bear Pin Bar. Can indicate a bearish reversal with a long upper wick and a small body near the bottom.
+ \n(No volume requirement, settings in 'Bar Settings')"
+
+const string tt_B_Doji = 
+ "Doji. Represents indecision with nearly equal open and close prices.
+ \n(No volume requirement, settings in 'Bar Settings')"
+
+const string tt_B_SpinningTop = 
+ "Spinning Top. Shows indecision with a small body and long wicks.
+ \n(No volume requirement, settings in 'Bar Settings')"
+
+const string tt_B_HighWave = 
+ "High Wave. Can indicate high volatility and indecision with a small body and long wicks.
+ \n(No volume requirement, settings in 'Bar Settings')"
+
+const string tt_B_Consolidation =
+ "Consolidation. Consolidation refers to a series of small-bodied candles with narrow spreads and low volume, indicating a pause in the current trend and potential for a breakout.
+ \n(No volume requirement, settings in 'Bar Settings')"
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//VSA AND BAR PATTERNS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//INPUTS - SIGN OF STRENGTH (S)
+const string g_strength      = '🟢SIGN OF STRENGTH (S)'
+show_S_DownThrust            = input(false,title='Down Thrust [SPRING] (DT)',               group=g_strength, tooltip=tt_S_DownThrust)
+show_S_SellingClimax         = input(false,title='Selling Climax (SC)',                     group=g_strength, tooltip=tt_S_SellingClimax)
+show_S_NoEffortBearishResult = input(false,title='No Effort ➤ Bearish Result (NoE)',       group=g_strength, tooltip=tt_S_ResultNoEffort)
+show_S_BearishEffortNoResult = input(false,title='Bearish Effort ➤ No result (NoR)',       group=g_strength, tooltip=tt_S_EffortNoResult)
+show_S_InverseDownThrust     = input(false,title='Inverse Down Thrust [Failed Test] (IDT)', group=g_strength, tooltip=tt_S_InverseDownThrust)
+show_S_FailedSellingClimax   = input(false,title='Failed Selling Climax (FSC)',             group=g_strength, tooltip=tt_S_FailedSellingClimax)
+show_S_BullOutsideReversal   = input(false,title='Bull Outside Reversal (BOR)',             group=g_strength, tooltip=tt_S_BullOutsideReversal)
+show_S_EndOfFallingMarket    = input(false,title='End of Falling Market [Bag Holder] (BH)', group=g_strength, tooltip=tt_S_EndOfFallingMarket)
+show_S_PseudoDownThrust      = input(false,title='Pseudo Down Thrust [Pseudo Spring] (PDT)',group=g_strength, tooltip=tt_S_PseudoDownThrust)
+show_S_NoSupply              = input(false,title='No Supply (NS)',                          group=g_strength, tooltip=tt_S_NoSupply)
+
+//INPUTS - SIGN OF WEAKNESS (W)
+const string g_weakness      = '🔴SIGN OF WEAKNESS (W)'
+show_W_UpThrust              = input(false,title='Up Thrust (UT)',                          group=g_weakness, tooltip=tt_W_UpThrust)
+show_W_BuyingClimax          = input(false,title='Buying Climax (BC)',                      group=g_weakness, tooltip=tt_W_BuyingClimax)
+show_W_NoEffortBullishResult = input(false,title='No Effort ➤ Bullish Result (NoE)',       group=g_weakness, tooltip=tt_W_ResultNoEffort)
+show_W_BullishEffortNoResult = input(false,title='Bullish Effort ➤ No result (NoR)',       group=g_weakness, tooltip=tt_W_EffortNoResult)
+show_W_InverseUpThrust       = input(false,title='Inverse Up Thrust (IUT)',                 group=g_weakness, tooltip=tt_W_InverseUpThrust)
+show_W_FailedBuyingClimax    = input(false,title='Failed Buying Climax (FBC)',              group=g_weakness, tooltip=tt_W_FailedBuyingClimax)
+show_W_BearOutsideReversal   = input(false,title='Bear Outside Reversal (BOR)',             group=g_weakness, tooltip=tt_W_BearOutsideReversal)
+show_W_EndOfRisingMarket     = input(false,title='End Of Rising Market [Bag Seller] (BS)',  group=g_weakness, tooltip=tt_W_EndOfRisingMarket)
+show_W_PseudoUpThrust        = input(false,title='Pseudo Up Thrust (PUT)',                  group=g_weakness, tooltip=tt_W_PseudoUpThrust)
+show_W_NoDemand              = input(false,title='No Demand (ND)',                          group=g_weakness, tooltip=tt_W_NoDemand)
+
+//INPUTS - NEATRAL (C)
+const string g_neutral       = '🔵NEATRAL (N)'
+show_N_QuietDoji             = input(false,title='Quiet Doji (QD)',                         group=g_neutral,  tooltip=tt_N_QuietDoji)
+show_N_BalancedDoji          = input(false,title='Balanced Doji (BD)',                      group=g_neutral,  tooltip=tt_N_BalancedDoji)
+show_N_StrongDoji            = input(false,title='Strong Doji (SD)',                        group=g_neutral,  tooltip=tt_N_StrongDoji)
+show_N_QuietSpinningTop      = input(false,title='Quiet Spinning Top (QST)',                group=g_neutral,  tooltip=tt_N_QuietSpinningTop)
+show_N_BalancedSpinningTop   = input(false,title='Balanced Spinning Top (BST)',             group=g_neutral,  tooltip=tt_N_BalancedSpinningTop)
+show_N_StrongSpinningTop     = input(false,title='Strong Spinning Top (SST)',               group=g_neutral,  tooltip=tt_N_StrongSpinningTop)
+show_N_QuietHighWave         = input(false,title='Quiet High Wave (QHW)',                   group=g_neutral,  tooltip=tt_N_QuietHighWave)
+show_N_BalancedHighWave      = input(false,title='Balanced High Wave (BHW)',                group=g_neutral,  tooltip=tt_N_BalancedHighWave)
+show_N_StrongHighWave        = input(false,title='Strong High Wave (SHW)',                  group=g_neutral,  tooltip=tt_N_StrongHighWave)
+show_N_Consolidation         = input(false,title='Consolidation (C)',                       group=g_neutral,  tooltip=tt_N_Consolidation)
+
+//INPUTS - Bar Patterns
+const string g_barPatterns   = '🟡Bar Patterns (No Volume Requirement)'
+show_B_bullPinBar            = input(false, title="Bull Pin Bar (┯)",                       group=g_barPatterns, tooltip=tt_B_BullPinBar)
+show_B_bearPinBar            = input(false, title="Bear Pin Bar (┷)",                       group=g_barPatterns, tooltip=tt_B_BearPinBar)
+show_B_doji                  = input(false, title="Doji (+)",                               group=g_barPatterns, tooltip=tt_B_Doji)
+show_B_spinningTop           = input(false, title="Spinning Top (╫)",                       group=g_barPatterns, tooltip=tt_B_SpinningTop)
+show_B_highWave              = input(false, title="High Wave (╪)",                          group=g_barPatterns, tooltip=tt_B_HighWave)
+show_B_consolidation         = input(false, title="Consolidation (+++)",                    group=g_barPatterns, tooltip=tt_B_Consolidation)
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//BAR SETTINGS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const string g_bars = 'Bar Settings'
+
+//INPUTS - Doji Bar
+const string tt_dojiBar = 
+ "┿ Doji Bar
+ \nA Doji is a candlestick pattern where the open and close prices are nearly equal, indicating indecision in the market.\n■ Body: percentage between open and close."
+dojiBar_maxBody         = input.float(10.0, title='┿ Doji Bar - Body (<%)',         minval=0.1, maxval=90, step=0.1,    group=g_bars,inline='DojiBar',   tooltip=tt_dojiBar)
+
+//INPUTS - Bull Pin Bar
+const string tt_bullPinBar = 
+ "┯ Bull Pin Bar
+ \nA Bull Pin Bar is a bullish reversal pattern characterized by a long lower wick, a small body near the top of the range, and little or no upper wick, suggesting strong buying pressure.
+ \n\n■ Body: percentage between open and close.
+ \n■ Low Wick: percentage between low and open."
+bullPinBar_maxBody      = input.float(33.0, title='┯ Bull Pin Bar - Body (<%)',     minval=0.1, maxval=99, step=0.1,    group=g_bars,inline='BullPinBar')
+bullPinBar_minWick      = input.float(60.0, title='Low Wick (>%)',                  minval=0.1, maxval=99, step=0.1,    group=g_bars,inline='BullPinBar',tooltip=tt_bullPinBar)
+
+//INPUTS - Bear Pin Bar
+const string tt_bearPinBar = 
+ "┷ Bear Pin Bar
+ \nA Bear Pin Bar is a bearish reversal pattern with a long upper wick, a small body near the bottom of the range, and little or no lower wick, indicating strong selling pressure.
+ \n\n■ Body: percentage between open and close.
+ \n■ Top Wick: percentage between high and open."
+bearPinBar_maxBody      = input.float(33.0, title='┷ Bear Pin Bar -Body (<%)',      minval=0.1, maxval=99, step=0.1,    group=g_bars,inline='BearPinBar')
+bearPinBar_minWick      = input.float(60.0, title='Top Wick (>%)',                  minval=0.1, maxval=90, step=0.1,    group=g_bars,inline='BearPinBar',tooltip=tt_bearPinBar)
+
+//INPUTS - Spinning Top
+const string tt_spinningTop =
+ "┿ Spinning Top
+ \nA Spinning Top has a small body with long upper and lower wicks, reflecting indecision between buyers and sellers and often appearing at potential reversal points.
+ \n\n■ Range Percent\nMinimum size of each wick (upper and lower) as a percentage of the total bar from high to low.
+ \n\n■ EMA Length\nExponential Moving Average length to determine the average body size, ensuring the spinning top has a smaller body than the average."
+spinningTopBar_minWicks = input.float(34.0, title='╫ Spinning Top - Wicks (>%)',    minval=0.1, maxval=90,  step=0.1,   group=g_bars,inline='spin',   tooltip=tt_spinningTop)
+spinningTopBar_emaLength= input.int(14,     title='EMA Length',                     minval=2,   maxval=1000,            group=g_bars,inline='spin')
+
+//INPUTS - Consolidation
+const string tt_consolidation =
+ "+++ Consolidation
+ \nConsolidation refers to a series of small-bodied candles with narrow spreads and low volume, indicating a pause in the current trend and potential for a breakout.
+ \n\n■ Percent of Average Spread.
+ \n\n■ Number of Bars"
+consolidation_spread    = input.float(50.0, title='+++Consolidation - Spread (<%)', minval=0.1, maxval=100,  step=0.1,  group=g_bars,inline='tight', tooltip=tt_consolidation)
+consolidation_bars      = input.int(4,      title='Bars',                           minval=2,   maxval=100,             group=g_bars,inline='tight')
+
+//INPUTS - High Wave
+const string tt_highWave = 
+ "╪ High Wave
+ \nA High Wave candle has a small body and long upper and lower wicks, showing high volatility and indecision as prices fluctuate widely but close near the opening price.
+ \n\n■ Maximum body size relative to the total range to qualify as a High Wave candle.
+ \n\n■ Minimum wick size of each wick (upper and lower) relative to the total range to qualify as a High Wave candle.
+ \n\n■ Bars\nNumber of bars to compare the current candle's range."
+highWave_minBody        = input.float(10.0, title="╪ High Wave - Body (<%)",        minval=1.0,  maxval=50.0, step=0.1, group=g_bars,inline='hw',tooltip=tt_highWave)
+highWave_minWick        = input.float(25.0, title="Wicks (>%)",                     minval=10.0, maxval=50.0, step=0.1, group=g_bars,inline='hw')
+highWave_bars           = input.int(10,     title="Bars",                           minval=1,    maxval=100,  step=1,   group=g_bars,inline='hw')
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//INDICATOR BAR COLORS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const string g_colors = 'Colors - Bar (Indicator), MA (Indicator), Price (Price Bars)'
+
+//INPUTS - Indicator Bar Colors
+const string tt_colors_bar = 
+ "Bar and MA line (Color)
+ \n\n■ Detail (bull/bear)
+ \nApplicable if 'Bar' is set to 'Detail'.
+ \n\n■ Level\nApplicable if 'Bar' is set to 'Level'.
+ \n\n■ MA (lines)\nApplicable if MA is set to 'Lines'."
+const string tt_colors_fill= 
+ "Fill MA (Color)
+ \n\n■ Low to High fill
+ \n\n■ High to Ultra fill"
+const string tt_colors_vsa = 
+ "VSA Colors
+ \n\n■ Sign of Strength (or bull low/high/ultra)
+ \n■ Sign of Weakness (or bear low/high/ultra)
+ \n■ Neutral. Not visible unless zoomed in."
+detailedLowUp      = input(#004553,  title='Low: Detail',   group=g_colors, inline='low',tooltip=tt_colors_bar) //Low
+detailedLowDown    = input(#83211f,  title='',              group=g_colors, inline='low')
+lowCol             = input(#413BB2,  title='Level',         group=g_colors, inline='low')
+maLineColLow       = input(#787b8680,title='MA',            group=g_colors, inline='low')
+normalUp           = input(#26a69a,  title='Norm:Detail',   group=g_colors, inline='normal')                    //Normal
+normalDown         = input(#ef5350,  title='',              group=g_colors, inline='normal')
+averageCol         = input(#00AF00,  title='Level',         group=g_colors, inline='normal')
+maLineColAverage   = input(#2196f3,  title='MA',            group=g_colors, inline='normal')
+detailedHighUp     = input(#002700,  title='High:  Detail', group=g_colors, inline='high')                      //High
+detailedHighDown   = input(#2c0000,  title='',              group=g_colors, inline='high')
+highCol            = input(#FFFF00,  title='Level',         group=g_colors, inline='high')
+maLineColHigh      = input(#ff000080,title='MA',            group=g_colors, inline='high')
+detailedUltraUp    = input(#00AF00,  title='Ultra:Detail',  group=g_colors, inline='ultra')                     //Ultra
+detailedUltraDown  = input(#FF0000,  title='',              group=g_colors, inline='ultra')
+ultraCol           = input(#FF0000,  title='Level',         group=g_colors, inline='ultra')
+maLineColUltra     = input(#ff000080,title='MA',            group=g_colors, inline='ultra')
+normalAreaVolCol   = input(color.new(#90caf9,80),title='Low to High:   MA Fill - Vol',       group=g_colors, inline='ma1',        tooltip=tt_colors_fill) //Area
+highAreaVolCol     = input(color.new(#0d47a1,25),title='High to Ultra: MA Fill - Vol',       group=g_colors, inline='ma2')
+normalAreaSpreadCol= input(color.new(#90caf9,85),title='Spread',                             group=g_colors, inline='ma1',        tooltip=tt_colors_fill) //Area
+highAreaSpreadCol  = input(color.new(#0d47a1,85),title='Spread',                             group=g_colors, inline='ma2')
+barColorS          = input(color.yellow, title='VSA Strength and Bull lo/hi/ultra:   Price', group=g_colors, inline='BarColor1', tooltip=tt_colors_vsa)  //VSA and Bar Type
+barColorW          = input(color.purple, title='VSA Weakness and Bear lo/hi/ultra: Price',   group=g_colors, inline='BarColor2')
+barColorC          = input(color.blue,   title='VSA Neutral: Price',                         group=g_colors, inline='BarColor3')
+
+//CALCULATE - Bar Color
+calcBarColor(_source, _average, _multLow, _multHigh, _multUltra) =>
+    col = color.blue
+    if colorType == o_normal
+        col := close >= open ? color.new(normalUp, 25) : color.new(normalDown, 25)
+    else
+        bool isBullish = close >= open
+        if colorType == o_detailed
+            if isBullish
+                col := _source > _average * _multUltra ? detailedUltraUp :
+                       _source > _average * _multHigh  ? detailedHighUp  :
+                       _source < _average * _multLow   ? detailedLowUp   :
+                       color.new(normalUp, 25)
+            else
+                col := _source > _average * _multUltra ? detailedUltraDown :
+                       _source > _average * _multHigh  ? detailedHighDown  :
+                       _source < _average * _multLow   ? detailedLowDown   :
+                       color.new(normalDown, 25)
+        else if colorType == o_detailed_high_ultra
+            col := isBullish ?
+                 (_source > _average * _multUltra ? detailedUltraUp : 
+                 _source > _average * _multHigh  ? detailedHighUp   : 
+                 color.new(normalUp, 25)) :
+                 (_source > _average * _multUltra ? detailedUltraDown : 
+                 _source > _average * _multHigh  ? detailedHighDown  : 
+                 color.new(normalDown, 25))
+        else if colorType == o_detailed_ultra
+            col := isBullish ?
+                 (_source > _average * _multUltra ? detailedUltraUp : color.new(normalUp, 25)) :
+                 (_source > _average * _multUltra ? detailedUltraDown : color.new(normalDown, 25))
+        else if colorType == o_detailed_low
+            col := isBullish ?
+                 (_source < _average * _multLow ? detailedLowUp : color.new(normalUp, 25)) :
+                 (_source < _average * _multLow ? detailedLowDown : color.new(normalDown, 25))
+        else
+            col := _source < _average * _multLow   ? lowCol :
+                   _source < _average * _multHigh  ? averageCol :
+                   _source < _average * _multUltra ? highCol :
+                   _source > _average * _multUltra ? ultraCol :
+                   color.black
+    col
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//SETUP VOLUME & SPREAD
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//SETUP DATA - Current Volume and Spread Bars (simplifies using library functions)
+var data = map.new<string, float>()
+vpa.setupDataVolume(data, multVolumeLow, multVolumeHigh, multVolumeUltra, maLengthVolume, maTypeVolume)
+vpa.setupDataSpread(data, multSpreadLow, multSpreadHigh, multSpreadUltra, maLengthSpread, maTypeSpread)
+
+//CALCULATE - Colors
+volumeColor = calcBarColor(vpa.volume(),data.get('VolumeLevelAverage'), multVolumeLow, multVolumeHigh, multVolumeUltra) //Color of Bar (📊Volume)
+spreadColor = calcBarColor(vpa.spread(),data.get('SpreadLevelAverage'), multSpreadLow, multSpreadHigh, multSpreadUltra) //Color of Bar (📏Spread)
+
+//CALCULATE - Averages used only by Legend, for multipliers
+averageVolume = data.get('VolumeLevelAverage')
+averageSpread = data.get('SpreadLevelAverage')
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//VSA CALCULATIONS & LABEL ASSIGNMENT
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//SIGN OF STRENGTH (VSA Label)
+S_text_acronym = ''
+S_text_detail = ''
+
+if show_S_DownThrust
+    if vpa.S_DownThrust(data,bullPinBar_maxBody,bullPinBar_minWick)
+        S_text_acronym += '\nDT'
+        S_text_detail += '\n🟢Down Thrust'
+if show_S_SellingClimax
+    if vpa.S_SellingClimax(data)
+        S_text_acronym += '\nSC'
+        S_text_detail += '\n🟢Selling Climax'
+if show_S_NoEffortBearishResult
+    if vpa.S_NoEffortBearishResult()
+        S_text_acronym += '\nNoE'
+        S_text_detail += '\n🟢No Effort > Bear Result'
+if show_S_BearishEffortNoResult
+    if vpa.S_BearishEffortNoResult()
+        S_text_acronym += '\nNoR'
+        S_text_detail += '\n🟢Bear Effort > No Result'
+if show_S_InverseDownThrust
+    if vpa.S_InverseDownThrust(data,bearPinBar_maxBody,bearPinBar_minWick)
+        S_text_acronym += '\nIDT'
+        S_text_detail += '\n🟢Inverse Down Thrust'
+if show_S_FailedSellingClimax
+    if vpa.S_FailedSellingClimax()
+        S_text_acronym += '\nFSC'
+        S_text_detail += '\n🟢Failed Selling Climax'
+if show_S_BullOutsideReversal
+    if vpa.S_BullOutsideReversal(data)
+        S_text_acronym += '\nBOR'
+        S_text_detail += '\n🟢Bull Outside Reversal'
+if show_S_EndOfFallingMarket
+    if vpa.S_EndOfFallingMarket(data)
+        S_text_acronym += '\nBH'
+        S_text_detail += '\n🟢Bag Holder'
+if show_S_PseudoDownThrust
+    if vpa.S_PseudoDownThrust(bullPinBar_maxBody,bullPinBar_minWick)
+        S_text_acronym += '\nPDT'
+        S_text_detail += '\n🟢Pseudo Down Thrust'
+if show_S_NoSupply
+    if vpa.S_NoSupply(bullPinBar_maxBody,bullPinBar_minWick)
+        S_text_acronym += '\nNS'
+        S_text_detail += '\n🟢No Supply'
+
+//SIGN OF WEAKNESS (VSA Label)
+W_text_acronym = ''
+W_text_detail = ''
+
+if show_W_UpThrust
+    if vpa.W_UpThrust(data,bearPinBar_maxBody,bearPinBar_minWick)
+        W_text_acronym += '\nUT'
+        W_text_detail += '\n🔴Up Thrust'
+if show_W_BuyingClimax
+    if vpa.W_BuyingClimax(data)
+        W_text_acronym += '\nBC'
+        W_text_detail += '\n🔴Buying Climax'
+if show_W_NoEffortBullishResult
+    if vpa.W_NoEffortBullishResult()
+        W_text_acronym += '\nNoE'
+        W_text_detail += '\n🔴No Effort > Bull Result'
+if show_W_BullishEffortNoResult
+    if vpa.W_BullishEffortNoResult()
+        W_text_acronym += '\nNoR'
+        W_text_detail += '\n🔴Bull Effort > No Result'
+if show_W_InverseUpThrust
+    if vpa.W_InverseUpThrust(data,bullPinBar_maxBody,bullPinBar_minWick)
+        W_text_acronym += '\nIUT'
+        W_text_detail += '\n🔴Inverse Up Thrust'
+if show_W_FailedBuyingClimax
+    if vpa.W_FailedBuyingClimax()
+        W_text_acronym += '\nFBC'
+        W_text_detail += '\n🔴Failed Buying Climax'
+if show_W_BearOutsideReversal
+    if vpa.W_BearOutsideReversal(data)
+        W_text_acronym += '\nBOR'
+        W_text_detail += '\n🔴Bear Outside Reversal'
+if show_W_EndOfRisingMarket
+    if vpa.W_EndOfRisingMarket(data)
+        W_text_acronym += '\nBS'
+        W_text_detail += '\n🔴End Of Rising Market (Bag Seller)'
+if show_W_PseudoUpThrust
+    if vpa.W_PseudoUpThrust(bearPinBar_maxBody,bearPinBar_minWick)
+        W_text_acronym += '\nPUT'
+        W_text_detail += '\n🔴Pseudo Up Thrust'
+if show_W_NoDemand
+    if vpa.W_NoDemand(bearPinBar_maxBody,bearPinBar_minWick)
+        W_text_acronym += '\nND'
+        W_text_detail += '\n🔴No Demand'
+
+//NEUTRAL (VSA Label)
+C_text_acronym = ''
+C_text_detail = ''
+
+var countSig = 0
+
+N_QuietHighWave(simple float _highWaveBarMinBody = 10, simple float _highWaveBarMinWick = 25, simple int _highWaveBarBars = 10) =>
+    vpa.spread() > vpa.spread(1) and vpa.volume() < vpa.volume(1) and vpa.volume() < vpa.volume(2) and vpa.highWaveBar(_highWaveBarMinBody, _highWaveBarMinWick, _highWaveBarBars)
+
+if show_N_QuietDoji
+    if vpa.N_QuietDoji(dojiBar_maxBody)
+        C_text_acronym += '\nQD'
+        C_text_detail += '\n🔵Quiet Doji'
+if show_N_BalancedDoji
+    if vpa.N_BalancedDoji(data,dojiBar_maxBody)
+        C_text_acronym += '\nBD'
+        C_text_detail += '\n🔵Balanced Doji'
+if show_N_StrongDoji
+    if vpa.N_StrongDoji(dojiBar_maxBody)
+        C_text_acronym += '\nSD'
+        C_text_detail += '\n🔵Strong Doji'
+if show_N_QuietSpinningTop
+    if vpa.N_QuietSpinningTop(spinningTopBar_minWicks,spinningTopBar_emaLength)
+        C_text_acronym += '\nQST'
+        C_text_detail += '\n🔵Quiet Spinning Top'
+if show_N_BalancedSpinningTop
+    if vpa.N_BalancedSpinningTop(data,spinningTopBar_minWicks,spinningTopBar_emaLength)
+        C_text_acronym += '\nBST'
+        C_text_detail += '\n🔵Balanced Spinning Top'
+if show_N_StrongSpinningTop
+    if vpa.N_StrongSpinningTop(spinningTopBar_minWicks,spinningTopBar_emaLength)
+        C_text_acronym += '\nSST'
+        C_text_detail += '\n🔵Strong Spinning Top'
+if show_N_QuietHighWave
+    if N_QuietHighWave(highWave_minBody,highWave_minWick,highWave_bars)
+        countSig += 1
+        C_text_acronym += '\nQHW'
+        C_text_detail += '\n🔵Quiet High Wave'
+if show_N_BalancedHighWave
+    if vpa.N_BalancedHighWave(data,highWave_minBody,highWave_minWick,highWave_bars)
+        
+        C_text_acronym += '\nBHW'
+        C_text_detail += '\n🔵Balanced High Wave'
+if show_N_StrongHighWave
+    if vpa.N_StrongHighWave(highWave_minBody,highWave_minWick,highWave_bars)
+        C_text_acronym += '\nSHW'
+        C_text_detail += '\n🔵Strong High Wave'
+if show_N_Consolidation
+    if vpa.N_Consolidation(data,consolidation_spread,consolidation_bars)
+        C_text_acronym += '\nC'
+        C_text_detail += '\n🔵Consolidation'
+
+//bgcolor(color=countSig > 0 ? color.blue : na)
+
+//Bar Patterns
+B_text_acronym = ''
+B_text_detail = ''
+
+if show_B_bullPinBar
+    if vpa.bullPinBar()
+        B_text_acronym := '\n┯'
+        B_text_detail := '\n🟡Bull Pin Bar'
+if show_B_bearPinBar
+    if vpa.bearPinBar()
+        B_text_acronym := '\n┷'
+        B_text_detail := '\n🟡Bear Pin Bar'
+if show_B_doji
+    if vpa.dojiBar()
+        B_text_acronym := '\n+'
+        B_text_detail := '\n🟡Doji'
+if show_B_spinningTop
+    if vpa.spinningTopBar()
+        B_text_acronym := '\n╫'
+        B_text_detail := '\n🟡Spinning Top'
+if show_B_consolidation
+    if vpa.consolidationBar(data)
+        B_text_acronym := '\n+++'
+        B_text_detail := '\n🟡Consolidation'
+if show_B_highWave
+    if vpa.highWaveBar()
+        B_text_acronym := '\n╪'
+        B_text_detail := '\n🟡High Wave'
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//MORE DISPLAY OPTIONS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const string g_moreDisplayOptions = 'More Display Options'
+
+//INPUTS - VSA DISPLAY OPTIONS
+const string tt_label_displayShape  = 
+ "■ Show VSA Dots
+ \nCircles displayed if VSA criteria is met.
+ \n\n■ Size
+ \nLinewidth of dots.
+ \n\n Green = Sign Of Strength (S)
+ \n Red = Sign of Weakness (W)
+ \n Blue = Neutral (N)
+ \n Purple = Multiple VSA types (S,W, and/or C)"
+const string tt_display_labels      = 
+ "■ Show VSA Labels
+ \nLabels displayed if VSA criteria is met.
+ \n\n■ Text\n-Acronym: short text acronym for VSA patterns.
+ \n-Descriptive: full descriptive title for VSA patterns.
+ \n\n■ Position\n-Auto: below unless Volume and Spread display.
+ \n-Above: above indicator's bars\n-Below: below indicator's bars"
+const string tt_sizeVSA = 
+ "■ Size VSA
+ \nLabels for VSA and Bar Patterns."
+const string tt_sizeLegend = 
+ "■ Size Legend
+ \nTable of colors, and bar(s) type (volume/spread)."
+const string tt_sizeForecast = 
+ "■ Size Forecast
+ \nLabel showing forecasted level."
+const string tt_spreadLineWidth =
+ "■ Spread Bars (Lines) Width (Applicable if 'All' Shown)
+ \nThe width of lines displayed for '📏Spread', when '📊Volume' also shown."
+const string tt_displayBarType =
+ "■ Show Bar Type (Volume and/or Spread)
+ \nDisplays a central heading identifying bars as either '📏Spread' and/or '📊Volume' Bars."
+label_displayShape     = input(true,             title='Show VSA Dots',                                         group=g_moreDisplayOptions,inline='shp',tooltip=tt_label_displayShape)
+label_displayShapeSize = input.int(2,            title='│ Size', minval=1, maxval=30,                           group=g_moreDisplayOptions,inline='shp')
+display_labels         = input(true,             title='Show VSA Labels',                                       group=g_moreDisplayOptions,inline='lbl',tooltip=tt_display_labels)
+text_length_option     = input.string('Acronym', title='│ Text',          options=['Acronym', 'Descriptive'],   group=g_moreDisplayOptions,inline='lbl')
+text_position_optionVAL= input.string('Auto',    title='Position',        options=['Auto','Below','Above'],     group=g_moreDisplayOptions,inline='lbl')
+var text_position_option = text_position_optionVAL == 'Auto' ? (displaySpreadLines ? 'Above' : 'Below') : text_position_optionVAL
+sizeVSA                = input.string(size.small,title='VSA',                                                   group=g_moreDisplayOptions,inline='txt', options=[size.tiny,size.small,size.normal,size.large], tooltip=tt_sizeVSA)
+sizeLegend             = input.string(size.small,title='Legend',                                                group=g_moreDisplayOptions,inline='txt2',options=[size.tiny,size.small,size.normal,size.large], tooltip=tt_sizeLegend)
+sizeForecast           = input.string(size.small,title='Forecast',                                              group=g_moreDisplayOptions,inline='txt3',options=[size.tiny,size.small,size.normal,size.large], tooltip=tt_sizeForecast)
+spreadLineWidth        = input.int(5,            title="Spread Bars (Lines) Width",                             group=g_moreDisplayOptions,inline='wid', tooltip=tt_spreadLineWidth, minval=1, maxval=30)
+displayBarType         = input(true,             title='Show Bar Type (Volume and/or Spread)',                  group=g_moreDisplayOptions,inline='type',tooltip=tt_displayBarType)
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//FORECAST MULTIPLIER SETTINGS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const string g_forecast = 'Forecast Calculation Settings'
+
+// Inputs for multipliers at peaks and midpoint
+const string tt_spreadMultiplier = 
+ "Applicable only if Spread and Forecast shown, or Spread Forecast alerts are enabled.
+ \n\nMultipliers dynamically apply the incremental rate of the Spread Forecast, where one multiplier applies at the bar's midpoint and the other applies at the peaks (bar's high and low).
+ \n\n■ Peaks Forecast Spread Multiplier (h+l)
+ \nUses a larger multiplier when the price is near the bar's high or low, indicating trending.
+ \n\n■ Midpoint Forecast Spread Multiplier (hl2)
+ \nUses smaller multiplier when the price is near the bar's midpoint, indicating consolidation.
+ \n\n**Why 'Spread Forecast' requires multiplier?
+ \nAs the price moves within a spread bar, the spread increases only when the bar's low or high changes, unlike volume bars. Volume uses a 1.0 multiplier for linear growth, but Spread Forecast is non-linear and uses a multiplier below 1.0 to reflect a percentage of linear growth. The price change needed for the spread to increase is also accounted for."
+multiplierAtPeaks     = input.float(0.7, minval=0, maxval=1, step=0.1, title='Forecast Spread Multiplier - Peaks', inline='mult', group=g_forecast, tooltip=tt_spreadMultiplier)
+multiplierAtMidpoints = input.float(0.5, minval=0, maxval=1, step=0.1, title='Mid',                                inline='mult', group=g_forecast)
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//ALERTS SETTINGS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+const string g_alerts = 'Alerts'
+
+//CALCULATE - Formatted Timeframe Text
+calcTimeframeText(_src) =>
+    res = _src
+    if str.contains(_src,'S')
+        res := str.replace(_src,'S','s',0)
+    else if str.contains(_src,'D') or str.contains(_src,'W') or str.contains(_src,'M')
+        res := str.length(_src) == 1 ? '1' + _src : _src
+    else
+        res := str.tonumber(_src) < 60 ? _src + 'm' : str.tostring(str.tonumber(_src)/60) + 'h'
+
+//CALCULATE - Bull/Bear text for alerts
+alertTypeText() => vpa.bullBar() ? '(Bull)' : '(Bear)'
+
+//INPUTS - Alerts
+tt_alertTitle = "■ Alert Title\nAdded infont of all alert messages."
+alertTitle = input.string('', title='Alert Title', inline='title', group=g_alerts, tooltip=tt_alertTitle)
+var alertTitleText = alertTitle != '' ? alertTitle + ' ' : ''
+const string a_rapid     = 'Rapid'
+const string a_barClose  = 'Bar Close' //thin space
+const string tt_AlertVSA = 
+ "■ VSA Pattern Alerts
+ \nAlerts selected VSA pattern(s) at bar close (confirmed).
+ \n\nIncludes the following:
+ \n🟢Signs of Strength
+ \n🔴Signs of Weakness
+ \n🔵Neutral
+ \n🟡Bar Patterns (have no volume requirement)
+ \n\n**How Do I Create Alerts?
+ \nSelect conditions here. Then go to 'Create Alert' and set condition to 'VSA Patterns' and 'Any alert() function call', select create."
+const string tt_AlertVolume = 
+ "■ Volume ✓Confirmed (Select to include alert)
+ \nSignals when level occurs.
+ \n\n■ Level
+ \n-Low: signals low. (alerts if true at bar close)
+ \n-High: signals high.
+ \n-Ultra: signals ultra.
+ \n-High+Ultra: signals high and ultra.
+ \n\nExample Alert Message for currently High Volume, bull bar:
+ \n 15m ✓ 📊 Volume High (Bull)
+ \n\n**How Do I Create Alerts?
+ \nSelect conditions here. Then go to 'Create Alert' and set condition to 'VSA Patterns' and 'Any alert() function call', select create."
+const string tt_AlertSpread = 
+ "■ Spread ✓Confirmed (Select to include alert)
+ \nSignals when level occurs.
+ \n\n■ Level
+ \n-Low: signals low. (alerts if true at bar close)
+ \n-High: signals high.
+ \n-Ultra: signals ultra.
+ \n-High+Ultra: signals high and ultra.
+ \n\nExample Alert Message for currently High Spread, bull bar:
+ \n 15m ✓ 📏 Spread High (Bull)
+ \n\n**How Do I Create Alerts?
+ \nSelect conditions here. Then go to 'Create Alert' and set condition to 'VSA Patterns' and 'Any alert() function call', select create."
+const string tt_AlertForecastVolume    = 
+ "■ Volume 🔎Forecast (Select to include alert)
+ \nSignals if level were to occur if current frequency persists.
+ \n\n■ Level
+ \n-High: signals high.
+ \n-Ultra: signals ultra.
+ \n-High+Ultra: signals high and ultra.
+ \n\n■ Min Time % (Bar elapsed time percent)
+ \nThe minimum percent of the current bar's elapsed time since open, required to trigger a forecast alert. A higher percent increases the likelihood of hitting the target 'Level'.
+ \n\nExample Alert Message for forecasted High Volume, bull bar, 20% of bar duration elapsed:
+ \n  15m 🔎 📊 Volume Ultra (Bull) ⏱️20%
+ \n\n**How Do I Create Alerts?
+ \nSelect conditions here. Then go to 'Create Alert' and set condition to 'VSA Patterns' and 'Any alert() function call', select create."
+const string tt_AlertForecastSpread    = 
+ "■ Spread 🔎Forecast (Select to include alert)
+ \nSignals if level were to occur if current frequency persists.
+ \n\n■ Level
+ \n-High: signals high.
+ \n-Ultra: signals ultra.
+ \n-High+Ultra: signals high and ultra.
+ \n\n■ Min Time % (Bar elapsed time percent)
+ \nThe minimum percent of the current bar's elapsed time since open, required to trigger a forecast alert. A higher percent increases the likelihood of hitting the target 'Level'.
+ \n\nExample Alert Message for forecasted High Spread, bull bar, 20% of bar duration elapsed:
+ \n  15m 🔎 📏 Spread Ultra (Bull) ⏱️20%
+ \n\n**How Do I Create Alerts?
+ \nSelect conditions here. Then go to 'Create Alert' and set condition to 'VSA Patterns' and 'Any alert() function call', select create."
+const string o_AlertHigh         = 'High'
+const string o_AlertUltra        = 'Ultra'
+const string o_AlertHighAndUltra = 'High + Ultra'
+const string o_AlertLow          = 'Low'
+useAlertVSA     = input(false,              title="VSA Pattern",                                                               inline='alertsVSA',group=g_alerts,tooltip=tt_AlertVSA)
+alertVolumeUse  = input(false,              title="Volume (✓Confirmed)",                                                       inline='alertVol', group=g_alerts)
+alertVolumeVAL  = input.string(o_AlertUltra,title='',       options=[o_AlertLow,o_AlertHigh,o_AlertUltra,o_AlertHighAndUltra], inline='alertVol', group=g_alerts,tooltip=tt_AlertVolume)
+alertSpreadUse  = input(false,              title="Spread (✓Confirmed) ",                                                      inline='alertSpd', group=g_alerts)
+alertSpreadVAL  = input.string(o_AlertUltra,title='',       options=[o_AlertLow,o_AlertHigh,o_AlertUltra,o_AlertHighAndUltra], inline='alertSpd', group=g_alerts,tooltip=tt_AlertSpread)
+alertForecastVolumeUse  = input(false,              title="Volume (🔎Forecast)",                                                          inline='alertForecastVol', group=g_alerts)
+alertForecastVolumeVAL  = input.string(o_AlertUltra,title='',                      options=[o_AlertHigh,o_AlertUltra,o_AlertHighAndUltra], inline='alertForecastVol', group=g_alerts,tooltip=tt_AlertForecastVolume)
+alertForecastVolumeMin  = input.float(20,           title='Min Time %',            minval=0, maxval=100, step=1,                           inline='alertForecastVol', group=g_alerts)
+alertForecastSpreadUse  = input(false,              title="Spread (🔎Forecast) ",                                                          inline='alertForecastSpd', group=g_alerts)
+alertForecastSpreadVAL  = input.string(o_AlertUltra,title='',                      options=[o_AlertHigh,o_AlertUltra,o_AlertHighAndUltra], inline='alertForecastSpd', group=g_alerts,tooltip=tt_AlertForecastSpread)
+alertForecastSpreadMin  = input.float(20,           title='Min Time %',            minval=0, maxval=100, step=1,                           inline='alertForecastSpd', group=g_alerts)
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//DISPLAY VSA LABELS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//PLOT - Labels for VSA
+displayLabel(_text, _textColor, _tooltip, _labelLines) =>
+    var label info_label = na
+    label_text = str.replace_all(str.replace_all(str.replace_all(str.replace_all(text_position_option == 'Below' ? _labelLines + str.substring(_text, 1) : str.substring(_text, 1) + _labelLines, '🟢', ''), '🔴', ''), '🔵', ''), '🟡', '')
+    label_tooltip = str.substring(_tooltip, 1)
+    float yPos = 0.0
+    stylePos = label.style_label_up
+    if text_position_option == 'Above'
+        stylePos := label.style_label_down
+        yPos := displaySpread ? (colorType != o_detailed_low and colorType != o_normal and movingAverageColorType != o_NoneFill ? data.get('SpreadLevelUltra') : vpa.spread()) : 
+         (colorType != o_detailed_low and colorType != o_normal and movingAverageColorType != o_NoneFill ? data.get('VolumeLevelUltra') : vpa.volume())
+    info_label := label.new(x = time, y = yPos, text = label_text, xloc = xloc.bar_time, color = color.new(color.blue, 100), style = stylePos, textcolor = _textColor, size = sizeVSA, tooltip = label_tooltip)
+    info_label
+
+//CALCULATE - Text for labels viewable via hoving over VSA bar occurances to view all signals that occurred on a single bar
+label_detailed_tooltip = S_text_detail + W_text_detail + C_text_detail + B_text_detail
+
+//Prevents label text from overlapping each others (only applicable if multiple types displayed (Strength,Weakness,Neutral,BarPatterns))
+checkNewlines(s) =>
+    arr = str.split(s, '\n')
+    count = array.size(arr)
+    s != '' and count == 0 ? '' : count == 1 ? '\n' : count == 2 ? '\n\n' : count == 3 ? '\n\n\n' : count == 4 ? '\n\n\n\n' : count == 5 ? '\n\n\n\n\n' : count == 6 ? '\n\n\n\n\n\n' : ''
+
+//DISPLAY - Strength, Weakness, Neutral
+labelLines = '' //Holds new lines to prevent the different labels from overlapping, which allows for different label colors
+shapeColor = color.new(color.blue,100) //Color placeholder for VSA plots
+if text_length_option == 'Acronym' //Acronym
+    if S_text_acronym != ''
+        shapeColor := color.lime
+        if display_labels
+            displayLabel(S_text_acronym,color.lime,label_detailed_tooltip,labelLines)
+            labelLines += checkNewlines(S_text_acronym)
+    if W_text_acronym != ''
+        shapeColor := shapeColor == color.lime ? color.purple : color.red
+        if display_labels
+            displayLabel(W_text_acronym,color.red,label_detailed_tooltip,labelLines)
+            labelLines += checkNewlines(W_text_acronym)
+    if C_text_acronym != ''
+        shapeColor := shapeColor == color.lime or shapeColor == color.red or shapeColor == color.purple ? color.purple : color.blue
+        if display_labels
+            displayLabel(C_text_acronym,color.blue,label_detailed_tooltip,labelLines)
+            labelLines += checkNewlines(C_text_acronym)
+    if B_text_acronym != ''
+        if display_labels
+            displayLabel(B_text_acronym,color.yellow,label_detailed_tooltip,labelLines)
+else //Descriptive
+    if S_text_detail != ''
+        shapeColor := color.lime
+        if display_labels
+            displayLabel(S_text_detail,color.lime,label_detailed_tooltip,labelLines)
+            labelLines += checkNewlines(S_text_detail)
+    if W_text_detail != ''
+        shapeColor := shapeColor == color.lime ? color.purple : color.red
+        if display_labels
+            displayLabel(W_text_detail,color.red,label_detailed_tooltip,labelLines)
+            labelLines += checkNewlines(W_text_detail)
+    if C_text_detail != ''
+        shapeColor := shapeColor == color.lime or shapeColor == color.red or shapeColor == color.purple ? color.purple : color.blue
+        if display_labels
+            displayLabel(C_text_detail,color.blue,label_detailed_tooltip,labelLines)
+            labelLines += checkNewlines(C_text_detail)
+    if B_text_detail != ''
+        if display_labels
+            displayLabel(B_text_detail,color.yellow,label_detailed_tooltip,labelLines)
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//DISPLAY VOLUME OR SPREAD (BARS AND MOVING AVERAGES)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//CALCULATE - Bar Color
+barCol = color(na)
+if displayBarColorVal == o_None
+    na
+else if displayBarColorVal == o_VSA
+    barCol := shapeColor == color.lime ? barColorS : (shapeColor == color.red ? barColorW : (shapeColor == color.blue ? barColorC : (shapeColor == color.purple ? color.black : na)))
+else if displayBarColorVal == o_Low
+    if vpa.volume() < data.get('VolumeLevelLow')
+        barCol := vpa.bullBar() ? barColorS : barColorW
+else if displayBarColorVal == o_High
+    if vpa.volume() > data.get('VolumeLevelHigh')
+        barCol := vpa.bullBar() ? barColorS : barColorW
+else if displayBarColorVal == o_Ultra
+    if vpa.volume() > data.get('VolumeLevelUltra')
+        barCol := vpa.bullBar() ? barColorS : barColorW
+
+//PLOT - Bar Color
+barcolor(displayBarColorVal != "None" ? barCol : na, title='Price Bar Colors')
+
+//PLOT - Volume Bars or Spread Bars
+plot(displaySpread ? vpa.spread() : vpa.volume(),style=plot.style_columns,color=displaySpread ? spreadColor : volumeColor,title=o_volume + '  or  ' + o_spread)
+
+//PLOT - Moving Averages
+plot_low     = plot(displaySpread ? data.get('SpreadLevelLow')     : data.get('VolumeLevelLow'),    title="Moving Average - Low",    color=movingAverageColorType == o_LinesAll ? maLineColLow     : color.new(color.gray,100))
+plot_average = plot(displaySpread ? data.get('SpreadLevelAverage') : data.get('VolumeLevelAverage'),title='Moving Average - Normal', color=movingAverageColorType != o_NoneFill ? maLineColAverage : color.new(color.blue,100))
+plot_high    = plot(displaySpread ? data.get('SpreadLevelHigh')    : data.get('VolumeLevelHigh'),   title="Moving Average - High",   color=movingAverageColorType == o_LinesAll ? maLineColHigh    : color.new(color.gray,100))
+plot_ultra   = plot(displaySpread ? data.get('SpreadLevelUltra')   : data.get('VolumeLevelUltra'),  title="Moving Average - Ultra",  color=movingAverageColorType == o_LinesAll ? maLineColUltra   : color.new(color.gray,100))
+
+//FILL - Moving Averages
+fill(plot_average,plot_low, title="Low - Background", color=movingAverageColorType == o_Fill ? color.new(color.black,90) : na)
+fill(plot_low,plot_high,    title="Med - Background", color=movingAverageColorType == o_Fill ? (displaySpread ? normalAreaSpreadCol : normalAreaVolCol) : na)
+fill(plot_high,plot_ultra,  title="High - Background",color=movingAverageColorType == o_Fill ? (displaySpread ? highAreaSpreadCol : highAreaVolCol) : na)
+
+//PLOT - Label Shapes (circles) for VSA
+plot(label_displayShape and shapeColor != color.new(color.blue,100) ? 0 : na,style=plot.style_circles,linewidth=label_displayShapeSize+1, color=color.rgb(0, 0, 0), title="Shapes (backshadow)")
+plot(label_displayShape and shapeColor != color.new(color.blue,100) ? 0 : na,style=plot.style_circles,linewidth=label_displayShapeSize,   color=shapeColor,           title="Shapes")
+
+//PLOT - Transparent plots for external indicator use (0=No,1=Yes))
+plot(S_text_acronym == '' ? 0 : 1, title='🟢Sign of Strength (0=No,1=Yes)', color=color.new(color.blue,100), display=display.none)
+plot(C_text_acronym == '' ? 0 : 1, title='🔵Neutral (0=No,1=Yes)',          color=color.new(color.blue,100), display=display.none)
+plot(W_text_acronym == '' ? 0 : 1, title='🔴Sign of Weakness (0=No,1=Yes)', color=color.new(color.blue,100), display=display.none)
+plot(B_text_acronym == '' ? 0 : 1, title='🟡Bar Pattern (0=No,1=Yes)',      color=color.new(color.blue,100), display=display.none)
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//DISPLAY SPREAD AS LINES  (LINES)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//CALCULATE - Multiplier to scale Spread (lines) to Volume (plots)
+spreadMultiplier = ta.highest(vpa.volume(), displaySpreadCount) / ta.highest(vpa.spread(), displaySpreadCount)  // Multiplier = Volume Highest / Spread Highest
+
+// PLOT - Spread lines (when both volume and spread are displayed simultaneously)
+if displaySpreadLines
+    //ARRAYS - Used to plot spread when Volume and Spread are displayed at same time
+    var arr_avgSpread = array.new<float>()                      //Average Spread
+    array.unshift(arr_avgSpread,data.get('SpreadLevelAverage'))
+    var arr_lowSpread = array.new<float>()                      //Low Spread
+    array.unshift(arr_lowSpread,data.get('SpreadLevelLow'))
+    var arr_highSpread = array.new<float>()                     //High Spread
+    array.unshift(arr_highSpread,data.get('SpreadLevelHigh'))
+    var arr_ultraSpread = array.new<float>()                    //Ultra Spread
+    array.unshift(arr_ultraSpread,data.get('SpreadLevelUltra'))
+    var arr_spread = array.new<float>()                         //Spread (Current)
+    array.unshift(arr_spread,vpa.spread())                      
+    var arr_spreadCol = array.new<color>()                      //Spread Color (Current)
+    array.unshift(arr_spreadCol,spreadColor)
+    if barstate.islast
+        for poly in polyline.all  // Delete all poly lines on new bars
+            poly.delete()
+        sAVG = array.new<chart.point>()
+        sNormalArea = array.new<chart.point>()
+        sHighArea = array.new<chart.point>()
+        for i = 0 to displaySpreadCount
+            sAVG.push(chart.point.from_index(bar_index - i, (-spreadMultiplier) * array.get(arr_avgSpread, i)))
+            sNormalArea.push(chart.point.from_index(bar_index - i, (-spreadMultiplier) * array.get(arr_lowSpread, i)))
+            sHighArea.push(chart.point.from_index(bar_index - i, (-spreadMultiplier) * array.get(arr_highSpread, i)))
+        for i = displaySpreadCount to 0
+            sNormalArea.push(chart.point.from_index(bar_index - i, (-spreadMultiplier) * array.get(arr_highSpread, i)))
+            sHighArea.push(chart.point.from_index(bar_index - i, (-spreadMultiplier) * array.get(arr_ultraSpread, i)))
+        plnAVG        = polyline.new(sAVG,        line_color = maLineColAverage)
+        plnNormalArea = polyline.new(sNormalArea, line_color = movingAverageColorType == o_Fill ? normalAreaSpreadCol : maLineColLow, fill_color = movingAverageColorType == o_Fill ? normalAreaSpreadCol : na)
+        plnHighArea   = polyline.new(sHighArea,   line_color = movingAverageColorType == o_Fill ? highAreaSpreadCol   : maLineColHigh,fill_color = movingAverageColorType == o_Fill ? highAreaSpreadCol   : na)
+        for i = 0 to displaySpreadCount
+            line.new(bar_index - i, 0, bar_index - i, (-spreadMultiplier) * array.get(arr_spread, i), color = color.new(array.get(arr_spreadCol, i),0), width = spreadLineWidth)
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//LEGEND'S FUNCTION
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//CALCULATE - Legend's Check Level Function (Handles the different options in table)
+cL(_data, _txt, string _txt2 = '', string _txt3 = '') =>
+    result = ''
+    if _txt == 'Ultra' or _txt2 == 'Ultra'
+        result += vpa.isVolumeUltra(_data) ? '📊' : ''
+        result += vpa.isSpreadUltra(_data) ? '📏' : ''
+    if _txt == 'High' or _txt3 == 'High'
+        result += vpa.isVolumeHigh(_data) ? '📊' : ''
+        result += vpa.isSpreadHigh(_data) ? '📏' : ''
+    if _txt == 'Normal'
+        result += vpa.isVolumeNormal(_data) ? '📊' : ''
+        result += vpa.isSpreadNormal(_data) ? '📏' : ''
+    if _txt == 'Low' or _txt2 == 'Low'
+        result += vpa.isVolumeLow(_data) ? '📊' : ''
+        result += vpa.isSpreadLow(_data) ? '📏' : ''
+    result
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//FORECAST
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//CALCULATE - Text for title (Title, Timeframe, Valid chart's data)
+getLabelText(_gap, _elapsedTimePercent, _txtForecastLevel, _txtKnownLevel, _averageForecastMultiplier, _averageKnownMultiplier) =>
+    var useForecast = displayForecastVAL  == o_forecast_forecastCurrent or displayForecastVAL  == o_forecast_forecastOnly ? true : false
+    var useCurrent  = displayForecastVAL  == o_forecast_forecastCurrent or displayForecastVAL  == o_forecast_currentOnly  ? true : false
+    txt = displayForecastPercent ? str.format("⏱️{0,number,percent}",nz(_elapsedTimePercent)) : ''
+    if useForecast
+        if displayForecastLevel or displayForecastMult
+            txt += (txt != '' ? _gap : '') + '🔎'
+            if displayForecastMult
+                txt += '×' + _averageForecastMultiplier
+            if displayForecastLevel
+                txt += ' ' + _txtForecastLevel
+    if useCurrent
+        if displayForecastLevel or displayForecastMult
+            txt += (txt != '' ? _gap : '') + '✅'
+            if displayForecastMult
+                txt += '×' + _averageKnownMultiplier
+            if displayForecastLevel
+                txt += ' ' + _txtKnownLevel
+    txt
+
+//CALCULATE - Elapsed Time Percentage, Forecasted Volume, ForecastedSpread
+elapsedTimePercent = vpa.calcElapsedTimePercent()
+predictedLevelVolume = vpa.calcForecastedVolume()
+predictedLevelSpread = vpa.calcForecastedSpread(multiplierAtMidpoints, multiplierAtPeaks)
+
+//Setup Data - Forecasted Volume and Spread Bars
+var dataForecast = map.new<string, float>()
+if displayForecast or alertForecastSpreadUse or alertForecastVolumeUse // Only setup if forecast required
+    vpa.setupDataForecastVolume(dataForecast, predictedLevelVolume, multVolumeLow, multVolumeHigh, multVolumeUltra, maLengthVolume, maTypeVolume)
+    vpa.setupDataForecastSpread(dataForecast, predictedLevelSpread, multSpreadLow, multSpreadHigh, multSpreadUltra, maLengthSpread, maTypeSpread)
+
+
+
+//DISPLAY - Forecast Info
+if barstate.islast
+    if displayForecast
+        var timeframeMillis = (timeframe.in_seconds(timeframe.period) * 1000)
+        validBarChart = elapsedTimePercent < 1 and elapsedTimePercent >= 0
+        if displaySpread or displaySpreadLines
+            //Primary descriptive label for volume forecast
+            var lblSpread = label.new(bar_index, na, style=displaySpreadLines ? label.style_label_upper_left : label.style_label_left, textcolor=displayForecastColor ? color.white : chart.bg_color, size=sizeForecast, textalign=text.align_left)
+            //label.set_text(lblSpread, validBarChart ? getLabelText(displaySpreadLines ? ' ' : '\n', elapsedTimePercent, '🔎'+vpa.isSpreadText(dataForecast), '✅'+vpa.isSpreadText(data), '  ×' + str.tostring(nz(predictedLevelSpread/dataForecast.get('SpreadLevelAverage')),'#.##') + (predictedLevelSpread <= data.get('SpreadLevel') ? ' (max)' : '')) : '⌛Waiting for live data')
+            label.set_text(lblSpread, validBarChart ? getLabelText(displaySpreadLines ? ' ' : '\n', elapsedTimePercent, vpa.isSpreadText(dataForecast), vpa.isSpreadText(data), str.tostring(nz(predictedLevelSpread/dataForecast.get('SpreadLevelAverage')),'#.##') + (predictedLevelSpread <= data.get('SpreadLevel') ? ' (max)' : ''), str.tostring(nz(vpa.spread()/data.get('SpreadLevelAverage')),'#.##')) : '⌛Waiting for live data')
+            label.set_tooltip(lblSpread, validBarChart ? str.format("📏Spread Forecast\nBar Elapsed Time: {0,number,percent}(⏱️)\nForecast vs MA: ×{1,number,#.##}\nCurrent vs MA: ×{2,number,#.##}\nForecast Bar: {3,number,#.##} ({4})\nCurrent Bar: {5,number,#.##} ({6})\nForecast MA: {7,number,#.##}\nCurrent MA: {8,number,#.##}\nMultiplier Midpoint: {9,number,#.##}\nMultiplier Peaks: {10,number,#.##}", elapsedTimePercent, nz(predictedLevelSpread/dataForecast.get('SpreadLevelAverage')), data.get('SpreadLevel')/data.get('SpreadLevelAverage'), predictedLevelSpread, '🔎'+vpa.isSpreadText(dataForecast), vpa.spread(), '✔️'+vpa.isSpreadText(data), dataForecast.get('SpreadLevelAverage'), data.get('SpreadLevelAverage'), multiplierAtPeaks, multiplierAtMidpoints) : 'No open bar to forecast')
+            label.set_color(lblSpread, validBarChart and displayForecastColor ? calcBarColor(predictedLevelSpread,data.get('SpreadLevelAverage'), multSpreadLow, multSpreadHigh, multSpreadUltra) : chart.fg_color)
+            label.set_xy(lblSpread, bar_index, (displaySpread ? 1 : (displaySpreadLines ? -spreadMultiplier : spreadMultiplier))*(validBarChart ? predictedLevelSpread : vpa.spread()))
+        if displaySpread == false
+            //Primary descriptive label for spread forecast
+            var lblVolume = label.new(bar_index, na, style=displaySpreadLines ? label.style_label_lower_left : label.style_label_left, textcolor=displayForecastColor ? color.white : chart.bg_color, size=sizeForecast, textalign=text.align_left)
+            //label.set_text(lblVolume, validBarChart ? getLabelText(displaySpreadLines ? ' ' : '\n', elapsedTimePercent, '🔎'+vpa.isVolumeText(dataForecast), '✅'+vpa.isVolumeText(data), '  ×' + str.tostring(predictedLevelVolume/dataForecast.get('VolumeLevelAverage'),'#.##')) : '⌛Waiting for live data')
+            label.set_text(lblVolume, validBarChart ? getLabelText(displaySpreadLines ? ' ' : '\n', elapsedTimePercent, vpa.isVolumeText(dataForecast), vpa.isVolumeText(data), str.tostring(predictedLevelVolume/dataForecast.get('VolumeLevelAverage'),'#.##'), str.tostring(vpa.volume()/data.get('VolumeLevelAverage'),'#.##')) : '⌛Waiting for live data')
+            label.set_tooltip(lblVolume, validBarChart ? str.format("📊Volume Forecast\nBar Elapsed Time: {0,number,percent}(⏱️)\nForecast vs MA: ×{1,number,#.##}\nCurrent vs MA: ×{2,number,#.##}\nForecast Bar: {3,number,#.##} ({4})\nCurrent Bar: {5,number,#.##} ({6})\nForecast MA: {7,number,#.##}\nCurrent MA: {8,number,#.##}", elapsedTimePercent, nz(predictedLevelVolume/dataForecast.get('VolumeLevelAverage')), data.get('VolumeLevel')/data.get('VolumeLevelAverage'), predictedLevelVolume, '🔎'+vpa.isVolumeText(dataForecast), vpa.volume(), '✔️'+vpa.isVolumeText(data), dataForecast.get('VolumeLevelAverage'), data.get('VolumeLevelAverage')) : 'No open bar to forecast')
+            label.set_color(lblVolume, validBarChart and displayForecastColor ? calcBarColor(predictedLevelVolume,data.get('VolumeLevelAverage'), multVolumeLow, multVolumeHigh, multVolumeUltra) : chart.fg_color)
+            label.set_xy(lblVolume, bar_index, validBarChart ? predictedLevelVolume : vpa.volume())
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//LEGEND
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//barstate.islast
+    //COLORS - Table
+    var color legendNomCol = chart.fg_color
+    var color colBG = color.new(color.black,100)
+    //TOOLTIPS - Color Definitions (Table)
+    const string tt_Low    = "Low Area (Below Low Level)"
+    const string tt_Normal = "Normal Area (Between Low and High Level)"
+    const string tt_High   = "High Area (Between High and Ultra Level)"
+    const string tt_Ultra  = "Ultra Area (Above Ultra Level)"
+    if displayBarType
+        if displaySpreadLines
+            infoboxLabelTop = table.new(position=position.top_center, columns=1, rows=1, bgcolor=colBG, frame_color = color.new(color.blue,100))
+            table.cell(infoboxLabelTop, 0, 0, '📊Volume Bars',       text_color=color.new(chart.fg_color,50), bgcolor=colBG, text_size=sizeLegend)
+            infoboxLabelBot = table.new(position=position.bottom_center, columns=1, rows=1, bgcolor=colBG, frame_color = color.new(color.blue,100))
+            table.cell(infoboxLabelBot, 0, 0, '📏Spread Bars',       text_color=color.new(chart.fg_color,50), bgcolor=colBG, text_size=sizeLegend)
+        else
+            infoboxLabelTop2 = table.new(position=position.top_center, columns=1, rows=1, bgcolor=colBG, frame_color = color.new(color.blue,100))
+            table.cell(infoboxLabelTop2, 0, 0, displaySpread ? "📏Spread Bars" : "📊Volume Bars", text_color=color.new(chart.fg_color,50), bgcolor=colBG, text_size=sizeLegend)
+    if displayLegendColors //Colors Legend and titles for if bars displayed are either Volume and/or Spread
+        colVSA = color.black
+        infobox = table.new(position=position.top_right, columns=3, rows=4, bgcolor=colBG, frame_color = color.new(color.blue,100))
+        if colorType == o_normal
+            table.cell(infobox, 0, 0, "Bull",       text_color=normalUp,   bgcolor = vpa.bullBar() ? colVSA : colBG)
+            table.cell(infobox, 0, 1, "Bear",       text_color=normalDown, bgcolor = vpa.bearBar() ? colVSA : colBG)
+        if colorType == o_levels
+            table.cell(infobox, 0, 0, "Ultra" +cL(data,'Ultra'),                text_color=ultraCol,          text_size=sizeLegend, text_halign=text.align_left,tooltip=tt_Ultra)
+            table.cell(infobox, 0, 1, "High"  +cL(data,'High'),                 text_color=highCol,           text_size=sizeLegend, text_halign=text.align_left,tooltip=tt_High)
+            table.cell(infobox, 0, 2, "Normal"+cL(data,'Normal'),               text_color=averageCol,        text_size=sizeLegend, text_halign=text.align_left,tooltip=tt_Normal)
+            table.cell(infobox, 0, 3, "Low"   +cL(data,'Low'),                  text_color=lowCol,            text_size=sizeLegend, text_halign=text.align_left,tooltip=tt_Low)
+        if colorType == o_detailed
+            table.cell(infobox, 0, 0, "Bull",                                   text_color=detailedUltraUp,   text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 1, 0, "Bear",                                   text_color=detailedUltraDown, text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 2, 0, "Ultra" +cL(data,'Ultra'),                text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Ultra)
+            table.cell(infobox, 0, 1, "Bull",                                   text_color=detailedHighUp,    text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 1, 1, "Bear",                                   text_color=detailedHighDown,  text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 2, 1, "High"  +cL(data,'High'),                 text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_High)
+            table.cell(infobox, 0, 2, "Bull",                                   text_color=normalUp,          text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 1, 2, "Bear",                                   text_color=normalDown,        text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 2, 2, "Normal"+cL(data,'Normal'),               text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Normal)
+            table.cell(infobox, 0, 3, "Bull",                                   text_color=detailedLowUp,     text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 1, 3, "Bear",                                   text_color=detailedLowDown,   text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 2, 3, "Low"   +cL(data,'Low'),                  text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Low)
+        if colorType == o_detailed_high_ultra
+            table.cell(infobox, 0, 0, "Bull",                                   text_color=detailedUltraUp,   text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 1, 0, "Bear",                                   text_color=detailedUltraDown, text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 2, 0, "Ultra" + cL(data,'Ultra'),               text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Ultra)
+            table.cell(infobox, 0, 1, "Bull",                                   text_color=detailedHighUp,    text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 1, 1, "Bear",                                   text_color=detailedHighDown,  text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 2, 1, "High"  + cL(data,'High'),                text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_High)
+            table.cell(infobox, 0, 2, "Bull",                                   text_color=normalUp,          text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 1, 2, "Bear",                                   text_color=normalDown,        text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 2, 2, "Normal"+ cL(data,'Normal','Low'),        text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Normal)
+        if colorType == o_detailed_ultra
+            table.cell(infobox, 0, 0, "Bull",                                   text_color=detailedUltraUp,   text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 1, 0, "Bear",                                   text_color=detailedUltraDown, text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 2, 0, "Ultra" + cL(data,'Ultra'),               text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Ultra)
+            table.cell(infobox, 0, 2, "Bull",                                   text_color=normalUp,          text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 1, 2, "Bear",                                   text_color=normalDown,        text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 2, 2, "Normal"+ cL(data,'Normal','Low','High'), text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Normal)
+        if colorType == o_detailed_low
+            table.cell(infobox, 0, 2, "Bull",                                   text_color=normalUp,          text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 1, 2, "Bear",                                   text_color=normalDown,        text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 2, 2, "Normal"+cL(data,'Normal','Ultra','High'),text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Normal)
+            table.cell(infobox, 0, 3, "Bull",                                   text_color=detailedLowDown,   text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 1, 3, "Bear",                                   text_color=detailedLowUp,     text_size=sizeLegend, text_halign=text.align_left)
+            table.cell(infobox, 2, 3, "Low"   +cL(data,'Low'),                  text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Low)
+    else if displayLegendLevels
+        infobox = table.new(position=position.top_right, columns=1, rows=4, bgcolor=colBG, frame_color = color.new(color.blue,100))
+        table.cell(infobox,     0, 0, "Ultra" +cL(data,'Ultra'),                text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Ultra)
+        table.cell(infobox,     0, 1, "High"  +cL(data,'High'),                 text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_High)
+        table.cell(infobox,     0, 2, "Normal"+cL(data,'Normal'),               text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Normal)
+        table.cell(infobox,     0, 3, "Low"   +cL(data,'Low'),                  text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Low)
+    else if displayLegendLevels2 or displayLegendLevels3
+        infobox = table.new(position=position.top_right, columns=5, rows=5, bgcolor=colBG, frame_color = color.new(color.blue,100), border_width = 1, border_color = chart.fg_color)
+        table.cell(infobox,     0, 0, "Bars ⇒" ,                               text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left)
+        table.cell(infobox,     0, 1, "Ultra" ,                                 text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Ultra)
+        table.cell(infobox,     0, 2, "High"  ,                                 text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_High)
+        table.cell(infobox,     0, 3, "Normal",                                 text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Normal)
+        table.cell(infobox,     0, 4, "Low"   ,                                 text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_left, tooltip=tt_Low)
+        if displayLegendLevels3
+            table.cell(infobox, 1, 0, '2Prior',                                 text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='2 bars prior')
+            table.cell(infobox, 1, 1, cL(data[2],'Ultra'),                      text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='Ultra, 2 bars prior')
+            table.cell(infobox, 1, 2, cL(data[2],'High'),                       text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='High, 2 bars prior')
+            table.cell(infobox, 1, 3, cL(data[2],'Normal'),                     text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='Normal, 2 bars prior')
+            table.cell(infobox, 1, 4, cL(data[2],'Low'),                        text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='Low, 2 bars prior')
+        table.cell(infobox,     2, 0, 'Prior',                                  text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='Prior bar')
+        table.cell(infobox,     2, 1, cL(data[1],'Ultra'),                      text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='Ultra, Prior bar')
+        table.cell(infobox,     2, 2, cL(data[1],'High'),                       text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='High, Prior bar')
+        table.cell(infobox,     2, 3, cL(data[1],'Normal'),                     text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='Normal, Prior bar')
+        table.cell(infobox,     2, 4, cL(data[1],'Low'),                        text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='Low, Prior bar')
+        table.cell(infobox,     3, 0, 'Now',                                    text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='Current bar')
+        table.cell(infobox,     3, 1, cL(data,'Ultra'),                         text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='Ultra, Current bar')
+        table.cell(infobox,     3, 2, cL(data,'High'),                          text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='High, Current bar')
+        table.cell(infobox,     3, 3, cL(data,'Normal'),                        text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='Normal, Current bar')
+        table.cell(infobox,     3, 4, cL(data,'Low'),                           text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='Low, Current bar')                
+    else if displayLegendMult1 or displayLegendMult2 or displayLegendMult3
+        infobox = table.new(position=position.top_right, columns=5, rows=5, bgcolor=colBG, frame_color = color.new(color.blue,100), border_width = 1, border_color = chart.fg_color)
+        table.cell(infobox,     0, 0, "Bars ⇒",                                text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center)
+        table.cell(infobox,     0, 1, "Volume",                                 text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center)
+        table.cell(infobox,     0, 2, "Spread",                                 text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center)
+        if displayLegendMult3
+            table.cell(infobox,     1, 0, "2Prior",                             text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='2 bars prior')
+            table.cell(infobox,     1, 1, str.tostring(vpa.volume(2)/averageVolume[2],'#.##'),                text_size=sizeLegend, text_halign=text.align_center, tooltip='Volume vs. Average, 2 bars prior', text_color=legendNomCol)
+            table.cell(infobox,     1, 2, str.tostring(vpa.spread(2)/averageSpread[2],'#.##'),                text_size=sizeLegend, text_halign=text.align_center, tooltip='Spread vs. Average, 2 bars prior', text_color=legendNomCol)
+        if displayLegendMult2 or displayLegendMult3
+            table.cell(infobox,     2, 0, "Prior",                              text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='Prior bar')
+            table.cell(infobox,     2, 1, str.tostring(vpa.volume(1)/averageVolume[1],'#.##'),                text_size=sizeLegend, text_halign=text.align_center, tooltip='Volume vs. Average, Prior bar',    text_color=legendNomCol)
+            table.cell(infobox,     2, 2, str.tostring(vpa.spread(1)/averageSpread[1],'#.##'),                text_size=sizeLegend, text_halign=text.align_center, tooltip='Spread vs. Average, Prior bar',    text_color=legendNomCol)
+        table.cell(infobox,     3, 0, "Now",                                    text_color=legendNomCol,      text_size=sizeLegend, text_halign=text.align_center, tooltip='Current bar')
+        table.cell(infobox,     3, 1, str.tostring(vpa.volume()/averageVolume,'#.##'),                        text_size=sizeLegend, text_halign=text.align_center, tooltip='Volume vs. Average, Current bar',  text_color=legendNomCol)
+        table.cell(infobox,     3, 2, str.tostring(vpa.spread()/averageSpread,'#.##'),                        text_size=sizeLegend, text_halign=text.align_center, tooltip='Spread vs. Average, Current bar',  text_color=legendNomCol)
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//ALERTS CHECKED
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    if useAlertVSA
+        if label_detailed_tooltip[1] != ''
+            label_extracted = str.substring(label_detailed_tooltip[1],1) //Removes the '\n' from beginning
+            alert(calcTimeframeText(timeframe.period) + " VSA: " + str.replace_all(label_extracted,'\n',', '), alert.freq_once_per_bar)
+
+    //ALERTS - ✓Confirmed
+    if alertVolumeUse
+        //Low Volume (Bar Close)
+        if alertVolumeVAL == o_AlertLow
+            if vpa.volume() < data.get('VolumeLevelLow')
+                alert(alertTitleText + calcTimeframeText(timeframe.period) + " ✓ 📊Volume Low "     + alertTypeText(), alert.freq_once_per_bar_close)
+        //High Volume (Instant)
+        if alertVolumeVAL == o_AlertHigh or alertVolumeVAL == o_AlertHighAndUltra
+            if vpa.volume() > data.get('VolumeLevelHigh') 
+                alert(alertTitleText + calcTimeframeText(timeframe.period) + " ✓ 📊Volume High "    + alertTypeText(), alert.freq_once_per_bar)
+        //Ultra Volume (Instant)
+        if alertVolumeVAL == o_AlertUltra or alertVolumeVAL == o_AlertHighAndUltra
+            if vpa.volume() > data.get('VolumeLevelUltra') 
+                alert(alertTitleText + calcTimeframeText(timeframe.period) + " ✓ 📊Volume Ultra🔥 " + alertTypeText(), alert.freq_once_per_bar)
+    if alertSpreadUse
+        //Low Spread (Bar Close)
+        if vpa.spread() < data.get('SpreadLevelLow') and (alertSpreadVAL == o_AlertLow)
+            alert(alertTitleText + calcTimeframeText(timeframe.period) + " ✓ 📏Spread High "    + alertTypeText(), alert.freq_once_per_bar_close)
+        //High Spread (Instant)
+        if vpa.spread() > data.get('SpreadLevelHigh') and (alertSpreadVAL == o_AlertHigh or alertSpreadVAL == o_AlertHighAndUltra)
+            alert(alertTitleText + calcTimeframeText(timeframe.period) + " ✓ 📏Spread High "    + alertTypeText(), alert.freq_once_per_bar)
+        //Ultra Spread (Instant)
+        if vpa.spread() > data.get('SpreadLevelUltra') and (alertSpreadVAL == o_AlertUltra or alertSpreadVAL == o_AlertHighAndUltra)
+            alert(alertTitleText + calcTimeframeText(timeframe.period) + " ✓ 📏Spread Ultra🔥 " + alertTypeText(), alert.freq_once_per_bar)
+
+    //ALERTS - 🔎Forecast
+    if alertForecastVolumeUse
+        //High Volume (Instant)
+        if predictedLevelVolume > dataForecast.get('VolumeLevelHigh') and (alertForecastVolumeVAL == o_AlertHigh or alertForecastVolumeVAL == o_AlertHighAndUltra) and elapsedTimePercent*100 > alertForecastVolumeMin
+            alert(alertTitleText + calcTimeframeText(timeframe.period) + " 🔎 📊Volume High "    + alertTypeText() + " ⏱️" + str.tostring(elapsedTimePercent*100,'#') + "%", alert.freq_once_per_bar)
+        //Ultra Volume (Instant)
+        if predictedLevelVolume > dataForecast.get('VolumeLevelUltra') and (alertForecastVolumeVAL == o_AlertUltra or alertForecastVolumeVAL == o_AlertHighAndUltra) and elapsedTimePercent*100 > alertForecastVolumeMin
+            alert(alertTitleText + calcTimeframeText(timeframe.period) + " 🔎 📊Volume Ultra🔥 " + alertTypeText() + " ⏱️" + str.tostring(elapsedTimePercent*100,'#') + '% ', alert.freq_once_per_bar)
+    if alertForecastSpreadUse
+        //High Spread (Instant)
+        if predictedLevelSpread > dataForecast.get('SpreadLevelHigh') and (alertForecastSpreadVAL == o_AlertHigh or alertForecastSpreadVAL == o_AlertHighAndUltra) and elapsedTimePercent*100 > alertForecastSpreadMin
+            alert(alertTitleText + calcTimeframeText(timeframe.period) + " 🔎 📏Spread High "    + alertTypeText() + " ⏱️" + str.tostring(elapsedTimePercent*100,'#') + '%', alert.freq_once_per_bar)
+        //Ultra Spread (Instant)
+        if predictedLevelSpread > dataForecast.get('SpreadLevelUltra') and (alertForecastSpreadVAL == o_AlertUltra or alertForecastSpreadVAL == o_AlertHighAndUltra) and elapsedTimePercent*100 > alertForecastSpreadMin
+            alert(alertTitleText + calcTimeframeText(timeframe.period) + " 🔎 📏Spread Ultra🔥 " + alertTypeText() + " ⏱️" + str.tostring(elapsedTimePercent*100,'#') + '%', alert.freq_once_per_bar)
+
+    //ALERT - Warning Alert, when alert is created without any criteria
+    var bool invalidAlert = useAlertVSA == false and alertVolumeUse == false and alertSpreadUse == false and alertForecastVolumeUse == false and alertForecastSpreadUse == false
+    if invalidAlert
+        alert("Invalid Alert. In the indicator's settings select criteria prior to creating the alert.", alert.freq_once_per_bar)

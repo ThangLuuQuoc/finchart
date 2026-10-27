@@ -1,0 +1,12 @@
+//@version=4
+study("test-029-na_value")
+
+int[] T = array.new_int(size=0, initial_value=0)
+array.push(id=T, value=0)
+array.push(id=T, value=1)
+array.push(id=T, value=int(na))
+array.push(id=T, value=2)
+
+test = tostring(T)
+label la = label.new(bar_index, 0.0, test)
+label.delete(id=la[1])

@@ -1,0 +1,8 @@
+//@version=4
+strategy("robotrading body", shorttitle = "body", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_value = 0.1)
+mult = input(3.0)
+body = abs(close - open)
+if close < open and body > sma(body, 100) * mult
+    strategy.entry("L", strategy.long)
+if close > open
+    strategy.close_all()

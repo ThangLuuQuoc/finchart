@@ -1,0 +1,8 @@
+//@version=5
+strategy("OBV Strategy V2", overlay=true, 
+     commission_type=strategy.commission.percent, 
+     currency=currency.USD, 
+     commission_value=0.075,
+     slippage=2, initial_capital=10000)
+plot(close)
+// Removed script

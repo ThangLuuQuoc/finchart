@@ -1,0 +1,10 @@
+//@version=4
+strategy("Moving Average Crossover 1", overlay= true)
+ema5 = ema(close, 5)
+ema20 = ema(close, 20)
+long = ema5 > ema20
+short = ema5 < ema20
+colorBasis = ema5 >= ema20 ? color.green : color.red
+pBasis = plot(ema20, linewidth=4, color=colorBasis)
+strategy.entry("long", strategy.long, 1000.0, when=long)
+strategy.close("long", when = short)

@@ -1,0 +1,496 @@
+From c11d4e67ce355312adb6a4019ea2db03d4202ad3 Mon Sep 17 00:00:00 2001
+From: "thang.luu" <thang.luu@titancorpvn.com>
+Date: Fri, 12 Jun 2026 09:40:22 +0700
+Subject: [PATCH] feat(indicators): windowed rendering for streaming indicator
+ series
+
+lightweight-charts series.update() cost scales with the TOTAL point
+count of the series, not the visible count - measured +6.5ms per live
+tick with 9 plot series x 50k points, even though only ~300 bars were
+on screen. Capping the rendered tail returned ticks to the
+empty-chart floor.
+
+This change renders only the most recent `sizeBars` points (default
+5000) of each streaming-capable indicator plot series and backfills
+older points automatically when the user pans toward the rendered
+edge:
+
+- pure window policy in src/indicators/renderWindow.ts (unit-tested):
+  backfill triggers `guardBars` before the edge becomes visible (no
+  visible gap), each extension reaches `expandBars` past the visible
+  edge, and the window never shrinks during a session - a full-history
+  pan simply converges to today's render-everything behavior.
+- IndicatorController keeps the full computed points per plot as the
+  backfill source, updated in place as bars close on the streaming
+  path; extension re-applies the longer slice via setData.
+- opt out or tune via
+  `new IndicatorController(registry, { renderWindow })`.
+
+Measured on the 50k-bar stress scenario (5 indicators, 30 ticks/s):
+updateBar ~8.8ms -> ~2.9ms per tick; backfill verified by panning to
+the first bar of the history with all indicator lines present.
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+---
+ CHANGELOG.md                          |  11 +++
+ src/index.ts                          |   1 +
+ src/indicators/IndicatorController.ts | 119 +++++++++++++++++++++++---
+ src/indicators/renderWindow.ts        |  88 +++++++++++++++++++
+ tests/render-window.test.ts           |  82 ++++++++++++++++++
+ 5 files changed, 290 insertions(+), 11 deletions(-)
+ create mode 100644 src/indicators/renderWindow.ts
+ create mode 100644 tests/render-window.test.ts
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 0fce532..be879ef 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -8,6 +8,17 @@ to [Semantic Versioning](https://semver.org/).
+ 
+ ### Added
+ 
++- **Windowed indicator rendering** — on large histories, streaming-capable
++  indicators render only the most recent `sizeBars` points (default 5000) and
++  backfill older points automatically when the user pans toward the rendered
++  edge (backfill triggers `guardBars` before the edge becomes visible, so
++  there is no visible gap; the window never shrinks during a session).
++  Motivation: lightweight-charts' `series.update()` cost scales with the
++  TOTAL series point count — measured +6.5 ms per live tick with 9 plot
++  series × 50k points; windowing returns ticks to the empty-chart floor
++  (~8.8 ms → ~2.9 ms per tick in the 50k-bar stress scenario). Configure or
++  disable via `new IndicatorController(registry, { renderWindow })`
++  (`false` opts out; minor — additive API).
+ - **Streaming indicator engines** — `IndicatorDef` gains an optional
+   `streaming(inputs)` factory returning a `StreamingIndicator`
+   (`next(bar)` commits a confirmed bar, `peek(bar)` previews the in-progress
+diff --git a/src/index.ts b/src/index.ts
+index 5ba568e..3594995 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -51,6 +51,7 @@ export * from "./indicators/types";
+ export * from "./indicators/registry";
+ export * from "./indicators/builtin";
+ export * from "./indicators/streaming";
++export * from "./indicators/renderWindow";
+ export * from "./indicators/IndicatorController";
+ 
+ // ── Replay ──────────────────────────────────────────────────────────────────────
+diff --git a/src/indicators/IndicatorController.ts b/src/indicators/IndicatorController.ts
+index cf4487a..89ad6ff 100644
+--- a/src/indicators/IndicatorController.ts
++++ b/src/indicators/IndicatorController.ts
+@@ -32,6 +32,14 @@ import type {
+   PlotPoint,
+   StreamingIndicator,
+ } from "./types";
++import {
++  resolveRenderWindow,
++  initialRenderStart,
++  nextRenderStart,
++  lowerBoundByTime,
++  type RenderWindowOptions,
++  type RenderWindowConfig,
++} from "./renderWindow";
+ 
+ const HISTOGRAM_STYLES = new Set(["histogram", "columns"]);
+ 
+@@ -48,6 +56,12 @@ interface Managed {
+    * O(history).
+    */
+   stream: { inst: StreamingIndicator; pendingTime: number } | null;
++  /**
++   * Full computed points per plot, kept current as bars close — the backfill
++   * source when the render window extends left. Only populated for windowed
++   * streaming indicators; `null` means the series holds the full data.
++   */
++  plotAll: Map<string, PlotPoint[]> | null;
+ }
+ 
+ export class IndicatorController implements ChartPlugin {
+@@ -63,18 +77,27 @@ export class IndicatorController implements ChartPlugin {
+   private markers = new Map<string, SeriesMarker<Time>[]>();
+   private markersPlugin: ISeriesMarkersPluginApi<Time> | null = null;
+   private onChange?: (names: string[]) => void;
++  private readonly window: RenderWindowConfig | null;
++  private renderStart = -Infinity;
++  private offRange: (() => void) | null = null;
+ 
+   constructor(
+     private readonly registry: IndicatorRegistry,
+-    opts: { onChange?: (names: string[]) => void } = {},
++    opts: { onChange?: (names: string[]) => void; renderWindow?: RenderWindowOptions | false } = {},
+   ) {
+     this.onChange = opts.onChange;
++    this.window = resolveRenderWindow(opts.renderWindow);
+   }
+ 
+   init(ctx: PluginContext): void {
+     this.chart = ctx.chart;
+     this.candleSeries = ctx.series;
+     this.getBars = ctx.getBars;
++    if (this.window) {
++      this.offRange = ctx.bus.on("rangeChange", (r) => {
++        if (r) this.extendWindow(r.from / 1000);
++      });
++    }
+   }
+ 
+   onData(): void {
+@@ -143,7 +166,22 @@ export class IndicatorController implements ChartPlugin {
+     if (ib.time > stream.pendingTime) {
+       // the previously pending bar closed — commit it exactly once
+       const prev = bars[bars.length - 2];
+-      if (prev && prev.time === stream.pendingTime) stream.inst.next(prev);
++      if (prev && prev.time === stream.pendingTime) {
++        const committed = stream.inst.next(prev);
++        // keep the backfill source current as bars close
++        if (m.plotAll) {
++          for (const [plotId, v] of Object.entries(committed)) {
++            const value = typeof v === "number" ? v : v.value;
++            if (Number.isNaN(value)) continue;
++            const all = m.plotAll.get(plotId);
++            if (!all) continue;
++            const point: PlotPoint = { time: prev.time, value, color: typeof v === "object" ? v.color : undefined };
++            const last = all[all.length - 1];
++            if (last && last.time === prev.time) all[all.length - 1] = point;
++            else if (!last || prev.time > last.time) all.push(point);
++          }
++        }
++      }
+       stream.pendingTime = ib.time;
+     }
+     const vals = stream.inst.peek(ib);
+@@ -164,6 +202,8 @@ export class IndicatorController implements ChartPlugin {
+   }
+ 
+   destroy(): void {
++    this.offRange?.();
++    this.offRange = null;
+     if (this.chart) {
+       for (const m of this.managed.values()) {
+         for (const s of m.plotSeries.values()) {
+@@ -277,6 +317,7 @@ export class IndicatorController implements ChartPlugin {
+ 
+     if (!this.markersPlugin) this.markersPlugin = createSeriesMarkers(candle);
+     const bars = this.bars();
++    this.renderStart = this.window ? initialRenderStart(bars, this.window) : -Infinity;
+ 
+     // 1. Remove deactivated.
+     for (const [name, m] of this.managed) {
+@@ -317,6 +358,7 @@ export class IndicatorController implements ChartPlugin {
+         continue;
+       }
+       m.stream = this.makeStream(def, act, bars);
++      m.plotAll = this.window && m.stream ? new Map() : null;
+       if (m.isPattern) {
+         this.markers.set(name, buildMarkers(res));
+         this.flushMarkers();
+@@ -329,13 +371,14 @@ export class IndicatorController implements ChartPlugin {
+         const color = resolveColor(act.colors, plotId, pc?.color);
+         const isHist = HISTOGRAM_STYLES.has(pc?.style ?? "");
+         const filtered = filterValid(raw);
++        const visible = this.windowSlice(m, plotId, filtered);
+         if (isHist) {
+           (s as ISeriesApi<"Histogram">).setData(
+-            filtered.map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })),
++            visible.map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })),
+           );
+         } else {
+           (s as ISeriesApi<"Line">).applyOptions({ color });
+-          (s as ISeriesApi<"Line">).setData(filtered.map((d) => ({ time: d.time as Time, value: d.value })));
++          (s as ISeriesApi<"Line">).setData(visible.map((d) => ({ time: d.time as Time, value: d.value })));
+         }
+       }
+     }
+@@ -355,7 +398,7 @@ export class IndicatorController implements ChartPlugin {
+       if (def.category === "pattern") {
+         this.markers.set(name, buildMarkers(res));
+         this.flushMarkers();
+-        this.managed.set(name, { plotSeries: new Map(), pane: null, isPattern: true, stream: null });
++        this.managed.set(name, { plotSeries: new Map(), pane: null, isPattern: true, stream: null, plotAll: null });
+         continue;
+       }
+ 
+@@ -369,20 +412,28 @@ export class IndicatorController implements ChartPlugin {
+         paneIndex = chart.panes().length - 1;
+       }
+ 
+-      const plotSeries = new Map<string, ISeriesApi<"Line" | "Histogram">>();
++      const stream = this.makeStream(def, act, bars);
++      const managed: Managed = {
++        plotSeries: new Map(),
++        pane,
++        isPattern: false,
++        stream,
++        plotAll: this.window && stream ? new Map() : null,
++      };
++      const plotSeries = managed.plotSeries;
+       for (const [plotId, raw] of Object.entries(res.plots)) {
+         const pc = def.plotConfig.find((c) => c.id === plotId);
+         const color = resolveColor(act.colors, plotId, pc?.color);
+         const lineWidth = clampWidth(pc?.lineWidth ?? 1);
+         const isHist = HISTOGRAM_STYLES.has(pc?.style ?? "");
+-        const filtered = filterValid(raw);
++        const visible = this.windowSlice(managed, plotId, filterValid(raw));
+         if (isHist) {
+           const s = chart.addSeries(HistogramSeries, { color, priceLineVisible: false, lastValueVisible: false }, paneIndex);
+-          s.setData(filtered.map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })));
++          s.setData(visible.map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })));
+           plotSeries.set(plotId, s);
+         } else {
+           const s = chart.addSeries(LineSeries, { color, lineWidth, priceLineVisible: false, lastValueVisible: false }, paneIndex);
+-          s.setData(filtered.map((d) => ({ time: d.time as Time, value: d.value })));
++          s.setData(visible.map((d) => ({ time: d.time as Time, value: d.value })));
+           plotSeries.set(plotId, s);
+         }
+       }
+@@ -409,7 +460,52 @@ export class IndicatorController implements ChartPlugin {
+           }
+         }
+       }
+-      this.managed.set(name, { plotSeries, pane, isPattern: false, stream: this.makeStream(def, act, bars) });
++      this.managed.set(name, managed);
++    }
++  }
++
++  /**
++   * For windowed streaming indicators: remember the full computed points (the
++   * backfill source) and return only the rendered tail. Pass-through for
++   * everything else.
++   */
++  private windowSlice(m: Managed, plotId: string, filtered: PlotPoint[]): PlotPoint[] {
++    if (!m.plotAll) return filtered;
++    m.plotAll.set(plotId, filtered);
++    if (this.renderStart === -Infinity) return filtered;
++    return filtered.slice(lowerBoundByTime(filtered, this.renderStart));
++  }
++
++  /**
++   * Extend the render window left when the visible edge approaches it
++   * (subscribed to `rangeChange`). The window only grows; `setData` re-applies
++   * the longer slice from the stored full points.
++   */
++  private extendWindow(visibleFromSec: number): void {
++    const cfg = this.window;
++    if (!cfg || this.renderStart === -Infinity || this.managed.size === 0) return;
++    const newStart = nextRenderStart(this.bars(), this.renderStart, visibleFromSec, cfg);
++    if (newStart === null) return;
++    this.renderStart = newStart;
++    for (const [name, m] of this.managed) {
++      if (!m.plotAll) continue;
++      const def = this.registry.get(name);
++      const act = this.active.get(name);
++      if (!def || !act) continue;
++      for (const [plotId, all] of m.plotAll) {
++        const s = m.plotSeries.get(plotId);
++        if (!s) continue;
++        const pc = def.plotConfig.find((c) => c.id === plotId);
++        const color = resolveColor(act.colors, plotId, pc?.color);
++        const visible = newStart === -Infinity ? all : all.slice(lowerBoundByTime(all, newStart));
++        if (HISTOGRAM_STYLES.has(pc?.style ?? "")) {
++          (s as ISeriesApi<"Histogram">).setData(
++            visible.map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })),
++          );
++        } else {
++          (s as ISeriesApi<"Line">).setData(visible.map((d) => ({ time: d.time as Time, value: d.value })));
++        }
++      }
+     }
+   }
+ 
+@@ -458,8 +554,9 @@ export class IndicatorController implements ChartPlugin {
+       if (HISTOGRAM_STYLES.has(pc?.style ?? "")) {
+         const raw = res.plots[plotId];
+         if (!raw) continue;
++        const visible = this.windowSlice(m, plotId, filterValid(raw));
+         (s as ISeriesApi<"Histogram">).setData(
+-          filterValid(raw).map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })),
++          visible.map((d) => ({ time: d.time as Time, value: d.value, color: d.color ?? color })),
+         );
+       } else {
+         (s as ISeriesApi<"Line">).applyOptions({ color });
+diff --git a/src/indicators/renderWindow.ts b/src/indicators/renderWindow.ts
+new file mode 100644
+index 0000000..faaad5b
+--- /dev/null
++++ b/src/indicators/renderWindow.ts
+@@ -0,0 +1,88 @@
++/**
++ * Windowed rendering policy for indicator plot series.
++ *
++ * lightweight-charts' `series.update()` cost scales with the TOTAL number of
++ * points in the series, not the visible count (measured: 9 plot series ×
++ * 50k points ≈ +6.5 ms per live tick; capping the rendered tail brought a
++ * tick back to the empty-chart floor). So on large histories, streaming
++ * indicators render only the most recent `sizeBars` points and lazily
++ * backfill older ones when the user pans toward the rendered edge.
++ *
++ * Policy (pure functions; the controller wires them to chart events):
++ *  - the window starts at the last `sizeBars` bars;
++ *  - when fewer than `guardBars` rendered bars remain to the left of the
++ *    visible range, the window extends left by `expandBars` past the visible
++ *    edge — so backfill happens BEFORE the user can see the gap;
++ *  - the window never shrinks during a session (no thrash; a full-history
++ *    pan simply converges to today's render-everything behavior).
++ *
++ * `-Infinity` as a start time means "everything is rendered".
++ */
++
++export interface RenderWindowOptions {
++  /** Points initially rendered per plot series. Default 5000. */
++  sizeBars?: number;
++  /** Backfill triggers when fewer than this many rendered bars remain left of the view. Default 250. */
++  guardBars?: number;
++  /** How far past the visible edge each backfill extends. Default 2500. */
++  expandBars?: number;
++}
++
++export interface RenderWindowConfig {
++  sizeBars: number;
++  guardBars: number;
++  expandBars: number;
++}
++
++export const DEFAULT_RENDER_WINDOW: RenderWindowConfig = {
++  sizeBars: 5000,
++  guardBars: 250,
++  expandBars: 2500,
++};
++
++/** `false` disables windowing; `undefined`/partial merges over the defaults. */
++export function resolveRenderWindow(opt?: RenderWindowOptions | false): RenderWindowConfig | null {
++  if (opt === false) return null;
++  const cfg = { ...DEFAULT_RENDER_WINDOW, ...(opt ?? {}) };
++  if (cfg.sizeBars <= 0 || cfg.guardBars < 0 || cfg.expandBars <= 0) return null;
++  return cfg;
++}
++
++/** Index of the first element with `time >= t` (array ascending by time). */
++export function lowerBoundByTime(points: readonly { time: number }[], t: number): number {
++  if (t === -Infinity) return 0;
++  let lo = 0;
++  let hi = points.length;
++  while (lo < hi) {
++    const mid = (lo + hi) >> 1;
++    if (points[mid].time < t) lo = mid + 1;
++    else hi = mid;
++  }
++  return lo;
++}
++
++/** Render-start time for a fresh data set: last `sizeBars` bars, or everything. */
++export function initialRenderStart(bars: readonly { time: number }[], cfg: RenderWindowConfig): number {
++  if (bars.length <= cfg.sizeBars) return -Infinity;
++  return bars[bars.length - cfg.sizeBars].time;
++}
++
++/**
++ * New render-start time needed to keep `guardBars` of slack between the
++ * rendered edge and the visible edge, or `null` when no extension is needed.
++ * Never moves the start to the right (the window only grows).
++ */
++export function nextRenderStart(
++  bars: readonly { time: number }[],
++  currentStart: number,
++  visibleFromSec: number,
++  cfg: RenderWindowConfig,
++): number | null {
++  if (currentStart === -Infinity || bars.length === 0) return null;
++  const startIdx = lowerBoundByTime(bars, currentStart);
++  const visIdx = lowerBoundByTime(bars, visibleFromSec);
++  if (visIdx - startIdx >= cfg.guardBars) return null;
++  const newIdx = Math.max(0, visIdx - cfg.expandBars);
++  const t = newIdx === 0 ? -Infinity : bars[newIdx].time;
++  return t < currentStart ? t : null;
++}
+diff --git a/tests/render-window.test.ts b/tests/render-window.test.ts
+new file mode 100644
+index 0000000..027f194
+--- /dev/null
++++ b/tests/render-window.test.ts
+@@ -0,0 +1,82 @@
++import { describe, it, expect } from "vitest";
++import {
++  DEFAULT_RENDER_WINDOW,
++  resolveRenderWindow,
++  lowerBoundByTime,
++  initialRenderStart,
++  nextRenderStart,
++} from "../src/indicators/renderWindow";
++
++const bars = Array.from({ length: 10_000 }, (_, i) => ({ time: 1_000_000 + i * 60 }));
++const timeAt = (i: number) => bars[i].time;
++
++describe("resolveRenderWindow", () => {
++  it("false disables, undefined gives defaults, partials merge", () => {
++    expect(resolveRenderWindow(false)).toBeNull();
++    expect(resolveRenderWindow()).toEqual(DEFAULT_RENDER_WINDOW);
++    expect(resolveRenderWindow({ sizeBars: 100 })).toEqual({ ...DEFAULT_RENDER_WINDOW, sizeBars: 100 });
++  });
++
++  it("rejects nonsensical configs", () => {
++    expect(resolveRenderWindow({ sizeBars: 0 })).toBeNull();
++    expect(resolveRenderWindow({ expandBars: -5 })).toBeNull();
++  });
++});
++
++describe("lowerBoundByTime", () => {
++  it("finds the first index with time >= t", () => {
++    expect(lowerBoundByTime(bars, timeAt(0))).toBe(0);
++    expect(lowerBoundByTime(bars, timeAt(0) - 1)).toBe(0);
++    expect(lowerBoundByTime(bars, timeAt(500))).toBe(500);
++    expect(lowerBoundByTime(bars, timeAt(500) + 1)).toBe(501);
++    expect(lowerBoundByTime(bars, timeAt(9999) + 1)).toBe(10_000);
++    expect(lowerBoundByTime(bars, -Infinity)).toBe(0);
++    expect(lowerBoundByTime([], 5)).toBe(0);
++  });
++});
++
++describe("initialRenderStart", () => {
++  it("renders everything when the history fits in the window", () => {
++    expect(initialRenderStart(bars.slice(0, 100), { sizeBars: 100, guardBars: 10, expandBars: 50 })).toBe(-Infinity);
++  });
++
++  it("starts at the last sizeBars bars otherwise", () => {
++    const cfg = { sizeBars: 5000, guardBars: 250, expandBars: 2500 };
++    expect(initialRenderStart(bars, cfg)).toBe(timeAt(5000));
++  });
++});
++
++describe("nextRenderStart", () => {
++  const cfg = { sizeBars: 5000, guardBars: 250, expandBars: 2500 };
++  const start = timeAt(5000); // initial window = bars 5000..9999
++
++  it("no extension while the view stays well inside the window", () => {
++    expect(nextRenderStart(bars, start, timeAt(7000), cfg)).toBeNull();
++    expect(nextRenderStart(bars, start, timeAt(5000 + 250), cfg)).toBeNull(); // exactly guard slack
++  });
++
++  it("extends expandBars past the visible edge when slack < guard", () => {
++    const visible = timeAt(5100); // only 100 bars of slack
++    expect(nextRenderStart(bars, start, visible, cfg)).toBe(timeAt(5100 - 2500));
++  });
++
++  it("extends even when the view is already left of the window", () => {
++    expect(nextRenderStart(bars, start, timeAt(3000), cfg)).toBe(timeAt(500));
++  });
++
++  it("clamps to the full history (−Infinity) at the left end", () => {
++    expect(nextRenderStart(bars, timeAt(3000), timeAt(1000), cfg)).toBe(-Infinity);
++  });
++
++  it("never moves the start right and is a no-op when everything is rendered", () => {
++    expect(nextRenderStart(bars, -Infinity, timeAt(0), cfg)).toBeNull();
++    // a later visible edge must not shrink the window
++    expect(nextRenderStart(bars, timeAt(500), timeAt(9000), cfg)).toBeNull();
++  });
++
++  it("converges: applying the result again needs no further extension", () => {
++    const visible = timeAt(5100);
++    const newStart = nextRenderStart(bars, start, visible, cfg)!;
++    expect(nextRenderStart(bars, newStart, visible, cfg)).toBeNull();
++  });
++});
+-- 
+2.38.1.windows.1
+

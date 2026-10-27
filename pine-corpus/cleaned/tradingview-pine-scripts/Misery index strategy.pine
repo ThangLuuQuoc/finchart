@@ -1,0 +1,12 @@
+//@version=5
+strategy("Misery index", overlay=false)
+unemployment = request.security("FRED:UNRATE","M",close) 
+inflation = request.security("ECONOMICS:USIRYY","M",close)
+misery = unemployment+inflation
+plot(misery)
+longCondition = misery<misery[1]
+if (longCondition)
+    strategy.entry("My Long Entry Id", strategy.long)
+shortCondition = misery>misery[1]
+if (shortCondition)
+    strategy.entry("My Short Entry Id", strategy.short)

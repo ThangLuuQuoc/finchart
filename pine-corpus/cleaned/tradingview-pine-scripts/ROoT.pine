@@ -1,0 +1,10 @@
+//@version=5
+strategy("ROoT", overlay=true, margin_long=1, margin_short=1)
+longCondition = ta.crossover(ta.sma(close, 5), ta.vwap(hlc3))
+if (longCondition)
+    strategy.entry("BUY", strategy.long)
+shortCondition = ta.crossunder(ta.sma(close, 5), ta.vwap(hlc3))
+if (shortCondition)
+    strategy.entry("SELL", strategy.short)
+    
+stoploss = ta.ema(close, 9)

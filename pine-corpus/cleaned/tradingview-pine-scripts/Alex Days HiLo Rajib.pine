@@ -1,0 +1,13 @@
+//@version=4
+strategy(title="Alex Days HiLo Rajib", overlay = true)
+length = input(20)
+hh = highest(high, length)
+ll = lowest(low, length)
+plot(hh[1], color=color.green, title="HH")
+plot(ll[1], color=color.red, title="LL")
+//bgColour = (high > hh) ? color.blue :
+    // (low < ll) ? color.yellow :
+    // na
+//bgcolor(color=bgColour, transp=90)
+plotshape(high>hh[1] ? hh + 5:na, color=#FF0000,location=location.absolute, style=shape.arrowdown)
+plotshape(low< ll[1] ? ll-5: na, color=#00FF00, location=location.absolute, style=shape.arrowup)

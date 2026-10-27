@@ -1,0 +1,17 @@
+//@version=5
+strategy("MFI Simple Strategy", overlay=false)
+len = input(18, "Length")
+mfi = ta.sma(ta.mfi(close, len), len)
+mfiup = (mfi[1] < mfi) and (mfi[2] < mfi[1])
+mfidn = (mfi[1] > mfi) and (mfi[2] < mfi[1])
+goldsma = ta.sma(close, 200)
+if goldsma < close
+    strategy.entry("Long", strategy.long, when=mfiup)
+strategy.exit("Long", stop=goldsma)
+strategy.close("Long", when=mfidn)
+a = plot(mfi)
+b = plot(80, color=color.gray)
+c = plot(20, color=color.gray)
+fillclr = color.new(color.blue, 70)
+fill(a, b, color=(mfi > 80) ? fillclr : na)
+// fill(a, c)

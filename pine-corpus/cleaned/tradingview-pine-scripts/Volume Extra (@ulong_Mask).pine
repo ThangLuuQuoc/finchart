@@ -1,0 +1,18 @@
+//@version=4
+strategy(title='Volume Extra (@ulong_Mask)', calc_on_every_tick=true)
+maxvol = input(20000, minval=1, title="MaxVol")
+lw = input(3, minval=1, title="LineWidth")
+f_buy() =>
+    if(close >= open)
+        color.green
+        
+f_sell() =>
+    if(open > close)
+        color.red
+        
+f_extra() =>
+    if(volume > maxvol)
+        color.yellow
+plot(volume, title="Buy",style=plot.style_histogram,linewidth=lw,color = f_buy())
+plot(volume, title="Sell",style=plot.style_histogram,linewidth=lw,color = f_sell())
+plot(volume, title="Volume Extra",style=plot.style_histogram,linewidth=lw,color = f_extra())

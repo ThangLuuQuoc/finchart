@@ -1,0 +1,4 @@
+//@version=4
+strategy("My Script")
+plot(close)
+//if you want acess to the better version of this, just message me :)

@@ -1,0 +1,130 @@
+{
+  "name": "@getcandlekit/charts",
+  "version": "0.1.1",
+  "description": "Tree-shakeable financial charting toolkit: candlestick/OHLC/line/area/volume, drawing tools, pluggable indicators, measurement tools, and a deterministic replay engine. Built on lightweight-charts. Framework-agnostic core + optional React bindings.",
+  "license": "MIT",
+  "author": "candlekit contributors",
+  "homepage": "https://rohanbeingsocial.github.io/candlekit-charts/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rohanbeingsocial/candlekit-charts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rohanbeingsocial/candlekit-charts/issues"
+  },
+  "keywords": [
+    "charts",
+    "candlestick",
+    "ohlc",
+    "trading",
+    "financial-charts",
+    "lightweight-charts",
+    "technical-analysis",
+    "indicators",
+    "drawing-tools",
+    "replay",
+    "react",
+    "charting-library",
+    "stock-market",
+    "data-visualization",
+    "tradingview",
+    "fintech"
+  ],
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "files": [
+    "dist",
+    "styles.css",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js",
+      "require": "./dist/react/index.cjs"
+    },
+    "./react/workspace": {
+      "types": "./dist/react/workspace/index.d.ts",
+      "import": "./dist/react/workspace/index.js",
+      "require": "./dist/react/workspace/index.cjs"
+    },
+    "./indicators-tv": {
+      "types": "./dist/indicators-tv/index.d.ts",
+      "import": "./dist/indicators-tv/index.js",
+      "require": "./dist/indicators-tv/index.cjs"
+    },
+    "./styles.css": "./styles.css",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsup",
+    "build:site": "node scripts/build-site.mjs",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run typecheck && npm run lint && npm run test && npm run build"
+  },
+  "peerDependencies": {
+    "flexlayout-react": "^0.9.1",
+    "lightweight-charts": "^5.0.0",
+    "lightweight-charts-indicators": "^0.4.0",
+    "oakscriptjs": "^0.2.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "flexlayout-react": {
+      "optional": true
+    },
+    "lightweight-charts-indicators": {
+      "optional": true
+    },
+    "oakscriptjs": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "eslint": "^9.0.0",
+    "flexlayout-react": "^0.9.1",
+    "lightweight-charts": "^5.0.0",
+    "lightweight-charts-indicators": "^0.4.2",
+    "oakscriptjs": "^0.2.8",
+    "prettier": "^3.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsup": "^8.0.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,183 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Alpha_Wizard
+
+//@version=6
+indicator("volume profil mtf", "vpm", overlay = true, max_bars_back = 5000, max_boxes_count = 500, max_lines_count = 500, max_labels_count = 500)
+
+gEngine = "engine"
+vpMode           = input.string("Daily", "VP Mode", options = ["Daily", "Weekly", "Monthly"], group = gEngine, tooltip = "Selects the confirmed profile period used for the volume profile.")
+string vpTf      = vpMode == "Daily" ? "D" : vpMode == "Weekly" ? "W" : "M"
+string vpTag     = vpMode == "Daily" ? "1D" : vpMode == "Weekly" ? "1W" : "1M"
+int chartTfSec = timeframe.in_seconds(timeframe.period)
+int vpTfSec = timeframe.in_seconds(vpTf)
+bool validChartTf = chartTfSec <= vpTfSec
+profilesHistory  = input.int(3, "Confirmed Profiles History", minval = 1, maxval = 8, group = gEngine, tooltip = "Sets how many closed profiles remain visible on the chart.")
+showDeveloping   = input.bool(true, "Show Current Developing Profile", group = gEngine, tooltip = "Shows a preview of the current unfinished profile on the last bar.")
+maxProfileBars   = input.int(3000, "Max Bars Per Profile", minval = 20, maxval = 4500, group = gEngine, tooltip = "Limits the number of chart bars used to build one profile.")
+profilePlacement = input.string("Right", "Profile Placement", options = ["Right", "Left"], group = gEngine, tooltip = "Chooses whether the profile is drawn on the left or right side of its period.")
+profileWidthPct  = input.float(35.0, "Profile Width %", minval = 5, maxval = 100, step = 1, group = gEngine, tooltip = "Sets the maximum horizontal width of the profile rows.")
+minWidthBars     = input.int(12, "Minimum Profile Width Bars", minval = 3, maxval = 200, group = gEngine, tooltip = "Sets the minimum profile width in chart bars.")
+levelExtendMode  = input.string("Fixed Bars", "Level Extension Mode", options = ["Fixed Bars", "Extend Right"], group = gEngine, tooltip = "Fixed Bars uses the per-level extension values below. Extend Right makes horizontal levels continue to the right.")
+showDebug         = input.bool(true, "Dashboard", group = gEngine, tooltip = "Shows or hides the auction dashboard.")
+
+gRes = "resolution"
+nRows    = input.int(48, "Profile Rows", minval = 12, maxval = 120, group = gRes, tooltip = "Sets the number of price rows used to build each profile.")
+valuePct = input.float(70.0, "Value Area %", minval = 50, maxval = 90, step = 1, group = gRes, tooltip = "Sets the percentage of volume used to calculate the value area.")
+rowGapY  = input.float(0.10, "Row Gap Y", minval = 0.0, maxval = 0.45, step = 0.01, group = gRes, tooltip = "Adds vertical spacing between profile rows.")
+
+gDelta = "delta"
+showSplit = input.bool(true, "Show Bull/Bear Split", group = gDelta, tooltip = "Splits each row into bullish and bearish volume sections.")
+deltaMode = input.string("Bar Direction", "Delta Calculation", options = ["Bar Direction", "Range Position"], group = gDelta, tooltip = "Chooses how bullish and bearish volume are estimated.")
+
+gLevels = "poc and value area"
+showPoc    = input.bool(true, "Show POC", group = gLevels)
+showVa     = input.bool(true, "Show Value Area", group = gLevels)
+pocStyle   = input.string("Solid", "POC Line Style", options = ["Solid", "Dashed", "Dotted"], group = gLevels)
+pocWidth   = input.int(2, "POC Line Width", minval = 1, maxval = 5, group = gLevels)
+showRangeBg = input.bool(true, "Profile Range Background", group = gLevels)
+
+gZones = "levels"
+showProfileHL    = input.bool(true, "Show Profile High / Low", group = gZones)
+rangeLineColor   = input.color(color.new(#B0BEC5, 35), "High / Low Color", group = gZones)
+rangeLineWidth   = input.int(1, "Range / EQ Width", minval = 1, maxval = 4, group = gZones)
+rangeBgColor    = input.color(color.new(#2962FF, 95), "Range Background", group = gZones)
+
+float atrConfluence = ta.atr(14)
+
+gSess = "sessions"
+sessionTzAdv            = input.string("America/New_York", "Session Timezone", group = gSess)
+asiaSessionAdv          = input.session("1800-0300", "Asia Session", group = gSess)
+int asiaTimeAdv = time(timeframe.period, asiaSessionAdv, sessionTzAdv)
+
+f_palBull(int stop) =>
+    color c = #00E676
+    c := stop == 0 ? #00E676 : stop == 1 ? #66BB6A : stop == 2 ? #FFEB3B : stop == 3 ? #FFA726 : #FF6F00
+    c
+
+f_colPoc() =>
+    heatStyleMissing = true
+    #FFEB3B
+
+f_lineStyle(string s) =>
+    s == "Solid" ? line.style_solid : s == "Dashed" ? line.style_dashed : line.style_dotted
+
+f_clamp_int(int v, int lo, int hi) =>
+    math.max(lo, math.min(hi, v))
+
+f_safeVolume(float v) =>
+    float out = nz(v, 1.0)
+    out <= 0 ? 1.0 : out
+
+f_x_right(int baseBar, int extraBars) =>
+    math.min(baseBar + extraBars, bar_index + 499)
+
+var array<box> histBoxes = array.new_box()
+var array<line> histLines = array.new_line()
+var array<label> histLabels = array.new_label()
+var array<linefill> histFills = array.new_linefill()
+var array<float> sumPocs = array.new_float()
+
+var float apLastPoc = na
+var float apLastVah = na
+var float apLastVal = na
+var int periodStartBar = na
+var float prevConfirmedPoc = na
+
+f_clear_boxes(array<box> arr) =>
+    while array.size(arr) > 0
+        box bx = array.shift(arr)
+        if not na(bx)
+            box.delete(bx)
+
+f_drawProfile(int periodLeftBar, int periodRightBar, int lenRaw, int offset, string tag, array<box> boxArr, array<line> lineArr) =>
+    int beforeB = array.size(boxArr)
+    int beforeL = array.size(lineArr)
+    int len = math.min(lenRaw, maxProfileBars)
+    if len <= 1
+        [0, 0, na, na, na]
+    else
+        float hi = high[offset]
+        float lo = low[offset]
+        for i = 0 to len - 1
+            int idx = offset + i
+            hi := math.max(hi, high[idx])
+            lo := math.min(lo, low[idx])
+        float range_ = math.max(hi - lo, syminfo.mintick * nRows)
+        float step = range_ / nRows
+        array<float> rowsTotal = array.new_float(nRows, 0.0)
+        for i = 0 to len - 1
+            int idx = offset + i
+            float v = f_safeVolume(volume[idx])
+            int rowIdx = f_clamp_int(int(math.floor((close[idx] - lo) / step)), 0, nRows - 1)
+            array.set(rowsTotal, rowIdx, array.get(rowsTotal, rowIdx) + v)
+        int pocIdx = 0
+        float pocVol = array.get(rowsTotal, 0)
+        float totalVol = 0.0
+        for k = 0 to nRows - 1
+            float vv = array.get(rowsTotal, k)
+            totalVol += vv
+            if vv > pocVol
+                pocVol := vv
+                pocIdx := k
+        float pocPrice = lo + (pocIdx + 0.5) * step
+        float vaTargetVol = totalVol * valuePct / 100.0
+        float accVol = pocVol
+        int vaHi = pocIdx
+        int vaLo = pocIdx
+        while accVol < vaTargetVol and (vaHi < nRows - 1 or vaLo > 0)
+            float volUp = vaHi < nRows - 1 ? array.get(rowsTotal, vaHi + 1) : -1.0
+            float volDn = vaLo > 0 ? array.get(rowsTotal, vaLo - 1) : -1.0
+            if volUp >= volDn and volUp >= 0
+                vaHi += 1
+                accVol += volUp
+            else if volDn >= 0
+                vaLo -= 1
+                accVol += volDn
+            else
+                break
+        float vahPrice = lo + (vaHi + 1) * step
+        float valPrice = lo + vaLo * step
+        int periodLeft = math.max(periodLeftBar, periodRightBar - len + 1)
+        if showRangeBg
+            box bg = box.new(periodLeft, hi, periodRightBar, lo, xloc = xloc.bar_index, border_color = color.new(rangeBgColor, 10), border_width = 1, border_style = line.style_dotted, bgcolor = rangeBgColor)
+            array.push(boxArr, bg)
+        if showProfileHL
+            line ph = line.new(periodLeft, hi, periodRightBar, hi, xloc = xloc.bar_index, color = rangeLineColor, width = rangeLineWidth, style = line.style_solid)
+            array.push(lineArr, ph)
+        if showPoc
+            line pocMain = line.new(periodLeft, pocPrice, f_x_right(periodRightBar, 0), pocPrice, xloc = xloc.bar_index, color = f_colPoc(), width = pocWidth, style = f_lineStyle(pocStyle))
+            array.push(lineArr, pocMain)
+            label pocLb = label.new(periodRightBar + 1, pocPrice, tag + " POC " + str.tostring(pocPrice, format.mintick), xloc = xloc.bar_index, yloc = yloc.price, color = color.new(f_colPoc(), 30), textcolor = color.black, size = size.tiny, style = label.style_label_left)
+            array.push(histLabels, pocLb)
+        int afterB = array.size(boxArr)
+        int afterL = array.size(lineArr)
+        [afterB - beforeB, afterL - beforeL, pocPrice, vahPrice, valPrice]
+
+if na(periodStartBar)
+    periodStartBar := bar_index
+
+bool newVpPeriod = validChartTf and timeframe.change(vpTf)
+
+if newVpPeriod and barstate.isconfirmed and not na(periodStartBar) and bar_index > periodStartBar
+    int rawLen = bar_index - periodStartBar
+    int rightBar = bar_index - 1
+    int leftBar = math.max(periodStartBar, rightBar - rawLen + 1)
+    [bc, lc, profPoc, profVah, profVal] = f_drawProfile(leftBar, rightBar, rawLen, 1, vpTag, histBoxes, histLines)
+    apLastPoc := profPoc
+    apLastVah := profVah
+    apLastVal := profVal
+    array.push(sumPocs, profPoc)
+    prevConfirmedPoc := profPoc
+    periodStartBar := bar_index
+
+if barstate.islast and showDeveloping
+    int rawLiveLen = bar_index - periodStartBar + 1
+    [lbc, llc, lpoc, lvah, lval] = f_drawProfile(periodStartBar, bar_index, rawLiveLen, 0, vpTag + " LIVE", histBoxes, histLines)
+
+if showDebug and barstate.islast
+    var table dash = table.new(position.top_right, 2, 4, border_width = 1)
+    table.cell(dash, 0, 0, "volume profile", bgcolor = color.new(f_colPoc(), 30), text_color = color.black, text_size = size.tiny)
+    table.cell(dash, 0, 1, "POC", text_color = color.gray, text_size = size.tiny)
+    table.cell(dash, 1, 1, not na(apLastPoc) ? str.tostring(apLastPoc, format.mintick) : "NA", text_color = color.white, text_size = size.tiny)
+
+alertcondition(not na(apLastPoc) and high >= apLastPoc and low <= apLastPoc, "POC touch", "Price touched the last confirmed POC.")

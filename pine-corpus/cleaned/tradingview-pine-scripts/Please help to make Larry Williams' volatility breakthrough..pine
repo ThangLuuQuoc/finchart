@@ -1,0 +1,9 @@
+//@version=4
+strategy("larry wiliams", overlay=true)
+R = 0.5
+range = high[1] - low[1]
+buy_price = open + R * range
+plot(buy_price)
+if bar_index > 6000
+    strategy.entry("BUY", strategy.long, stop=buy_price, when=strategy.position_size == 0)
+    strategy.close("BUY")

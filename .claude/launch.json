@@ -1,0 +1,33 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "stress",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5199", "--strictPort"],
+      "cwd": "candlekit-charts/examples/stress",
+      "port": 5199
+    },
+    {
+      "name": "pine-transpiler",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5185", "--strictPort"],
+      "cwd": "candlekit-charts/examples/pine-transpiler",
+      "port": 5185
+    },
+    {
+      "name": "indicators",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5190", "--strictPort"],
+      "cwd": "candlekit-charts/examples/indicators",
+      "port": 5190
+    },
+    {
+      "name": "workspace",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5191", "--strictPort"],
+      "cwd": "candlekit-charts/examples/workspace",
+      "port": 5191
+    }
+  ]
+}

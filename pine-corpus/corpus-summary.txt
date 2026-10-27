@@ -1,0 +1,199 @@
+﻿# Pine corpus stats — 2026-06-12
+Files analyzed: 2947
+
+## Segments
+- all: 2947 scripts (indicator:1037, strategy:1849, unknown:1, library:60)
+- v2-v3: 397 scripts (indicator:288, strategy:108, unknown:1)
+- v4: 1212 scripts (indicator:217, strategy:995)
+- v5: 914 scripts (indicator:108, strategy:746, library:60)
+- v6: 424 scripts (indicator:424)
+- v4plus-indicators: 749 scripts (indicator:749)
+
+## [v5] constructs (% of 914 scripts)
+  ifKw           809  88.5%
+  inputs         807  88.3%
+  history        742  81.2%
+  strategyNs     737  80.6%
+  ternary        684  74.8%
+  userFn         527  57.7%
+  math           516  56.5%
+  varKw          456  49.9%
+  str            263  28.8%
+  tuple          254  27.8%
+  request        216  23.6%
+  forLoop        198  21.7%
+  array          159  17.4%
+  switchKw       125  13.7%
+  labelObj       125  13.7%
+  tableObj       105  11.5%
+  lineObj         90  9.8%
+  importLib       77  8.4%
+  whileLoop       34  3.7%
+  boxObj          32  3.5%
+  varip           24  2.6%
+  matrix          13  1.4%
+  method           9  1.0%
+  udt              8  0.9%
+  map              0  0.0%
+  polyline         0  0.0%
+
+## [v6] constructs (% of 424 scripts)
+  userFn         415  97.9%
+  inputs         403  95.0%
+  ifKw           374  88.2%
+  varKw          319  75.2%
+  math           310  73.1%
+  history        270  63.7%
+  ternary        263  62.0%
+  array          191  45.0%
+  forLoop        118  27.8%
+  tuple           85  20.0%
+  request         19  4.5%
+  whileLoop       15  3.5%
+  str              9  2.1%
+  switchKw         7  1.7%
+  lineObj          6  1.4%
+  tableObj         6  1.4%
+  matrix           5  1.2%
+  labelObj         3  0.7%
+  method           2  0.5%
+  boxObj           1  0.2%
+  udt              1  0.2%
+  map              1  0.2%
+  strategyNs       0  0.0%
+  varip            0  0.0%
+  importLib        0  0.0%
+  polyline         0  0.0%
+
+## [v4] constructs (% of 1212 scripts)
+  inputs        1135  93.6%
+  strategyNs     970  80.0%
+  history        954  78.7%
+  ternary        939  77.5%
+  ifKw           931  76.8%
+  userFn         669  55.2%
+  math           603  49.8%
+  varKw          337  27.8%
+  request        237  19.6%
+  str            211  17.4%
+  tuple          183  15.1%
+  forLoop        160  13.2%
+  labelObj       134  11.1%
+  array           90  7.4%
+  lineObj         68  5.6%
+  tableObj        23  1.9%
+  whileLoop       17  1.4%
+  switchKw         5  0.4%
+  boxObj           2  0.2%
+  varip            1  0.1%
+  udt              0  0.0%
+  method           0  0.0%
+  importLib        0  0.0%
+  matrix           0  0.0%
+  map              0  0.0%
+  polyline         0  0.0%
+
+## [v4plus-indicators] constructs (% of 749 scripts)
+  inputs         698  93.2%
+  userFn         657  87.7%
+  history        559  74.6%
+  ifKw           547  73.0%
+  math           528  70.5%
+  ternary        524  70.0%
+  varKw          497  66.4%
+  array          294  39.3%
+  forLoop        246  32.8%
+  tuple          179  23.9%
+  str            130  17.4%
+  labelObj       107  14.3%
+  request         83  11.1%
+  lineObj         76  10.1%
+  switchKw        30  4.0%
+  whileLoop       27  3.6%
+  boxObj          25  3.3%
+  tableObj        23  3.1%
+  matrix          15  2.0%
+  method          10  1.3%
+  udt              7  0.9%
+  varip            2  0.3%
+  importLib        2  0.3%
+  map              1  0.1%
+  strategyNs       0  0.0%
+  polyline         0  0.0%
+
+## ta.* ranking — v4+ indicators (749 scripts), v4 bare names mapped to v5
+  ta.sma                                    104  13.9%  
+  ta.change                                 103  13.8%  
+  ta.highest                                 92  12.3%  
+  ta.ema                                     87  11.6%  
+  ta.lowest                                  83  11.1%  
+  ta.atr                                     82  10.9%  
+  ta.rsi                                     61  8.1%  
+  ta.crossover                               53  7.1%  
+  ta.crossunder                              51  6.8%  
+  ta.cum                                     48  6.4%  
+  ta.stdev                                   39  5.2%  
+  ta.hma                                     33  4.4%  
+  ta.rma                                     31  4.1%  
+  ta.pivothigh                               30  4.0%  
+  ta.pivotlow                                30  4.0%  
+  ta.wma                                     27  3.6%  
+  ta.cci                                     18  2.4%  
+  ta.highestbars                             17  2.3%  
+  ta.lowestbars                              16  2.1%  
+  ta.valuewhen                               15  2.0%  
+  ta.barssince                               13  1.7%  
+  ta.linreg                                  13  1.7%  
+  ta.stoch                                    9  1.2%  
+  ta.cross                                    9  1.2%  
+  ta.vwap                                     8  1.1%  
+  ta.tr                                       8  1.1%  
+  ta.roc                                      8  1.1%  
+  ta.supertrend                               7  0.9%  
+  ta.falling                                  7  0.9%  
+  ta.rising                                   7  0.9%  
+  ta.mom                                      6  0.8%  
+  ta.vwma                                     6  0.8%  
+  ta.dmi                                      6  0.8%  
+  ta.percentile_nearest_rank                  5  0.7%    << NGOÀI V1
+  ta.mfi                                      4  0.5%  
+  ta.macd                                     4  0.5%  
+  ta.swma                                     4  0.5%  
+  ta.median                                   3  0.4%  
+  ta.sum                                      3  0.4%    << NGOÀI V1
+  ta.cog                                      3  0.4%  
+  ta.alma                                     3  0.4%  
+  ta.correlation                              3  0.4%  
+  ta.variance                                 3  0.4%  
+  ta.max                                      2  0.3%    << NGOÀI V1
+  ta.sar                                      2  0.3%  
+  ta.bbw                                      1  0.1%  
+  ta.tsi                                      1  0.1%  
+  ta.percentrank                              1  0.1%  
+  ta.min                                      1  0.1%    << NGOÀI V1
+  ta.mode                                     1  0.1%    << NGOÀI V1
+  ta.dev                                      1  0.1%  
+  ta.bb                                       1  0.1%  
+
+## ta.* NGOÀI V1 phổ biến nhất (ứng viên bổ sung)
+  ta.percentile_nearest_rank                  5  0.7%
+  ta.sum                                      3  0.4%
+  ta.max                                      2  0.3%
+  ta.min                                      1  0.1%
+  ta.mode                                     1  0.1%
+
+## Coverage simulation — v4+ indicator scripts (749)
+   44.9%  (336)  T1 core (decl+plot+input+ta-V1+math/str+ctrl-flow)
+   72.1%  (540)  T2 = T1 + array + varip + ta-mở-rộng
+   87.9%  (658)  T3 = T2 + line/label/box/table
+   96.4%  (722)  T4 = T3 + request.* (MTF)
+   97.6%  (731)  T5 = T4 + UDT/method
+   97.6%  (731)  T6 = T5 + strategy.* (cả decl strategy)
+
+## Coverage simulation — v5/v6 indicator scripts only (532)
+   47.9%  (255)  T1 core (decl+plot+input+ta-V1+math/str+ctrl-flow)
+   82.9%  (441)  T2 = T1 + array + varip + ta-mở-rộng
+   89.1%  (474)  T3 = T2 + line/label/box/table
+   94.9%  (505)  T4 = T3 + request.* (MTF)
+   96.6%  (514)  T5 = T4 + UDT/method
+   96.6%  (514)  T6 = T5 + strategy.* (cả decl strategy)

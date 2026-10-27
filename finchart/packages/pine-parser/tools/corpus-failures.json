@@ -1,0 +1,632 @@
+[
+ {
+  "file": "pinescript\\indicators\\numerics\\fft.pine",
+  "v": 6,
+  "line": 20,
+  "message": "lex: unexpected character: ->|<- at offset: 14, skipped 1 characters."
+ },
+ {
+  "file": "pinescript\\indicators\\oscillators\\apo.pine",
+  "v": 6,
+  "line": 16,
+  "message": "line 16: expected Newline at end of statement, got Var 'var'"
+ },
+ {
+  "file": "Pinescript-Laboratory\\banned-scripts\\Five-in-one-Strategy.pine",
+  "v": 4,
+  "line": 152,
+  "message": "line 152: expected declaration after 'var'"
+ },
+ {
+  "file": "Pinescript-Laboratory\\scripts\\016-Inverse-Fisher-RSI-MTF2-(v3).pine",
+  "v": 3,
+  "line": 27,
+  "message": "line 27: expected declaration after 'var'"
+ },
+ {
+  "file": "Pinescript-Laboratory\\scripts\\020-SpreadTrade-Cointegration.pine",
+  "v": 3,
+  "line": 52,
+  "message": "line 52: expected declaration after 'var'"
+ },
+ {
+  "file": "Pinescript-Laboratory\\scripts\\100-ML-Perceptron-based-Strategy-(v2).pine",
+  "v": 4,
+  "line": 4,
+  "message": "line 4: expected Newline at end of statement, got NumberLit '07'"
+ },
+ {
+  "file": "Pinescript-Laboratory\\scripts\\104-Five-in-One-Strategy.pine",
+  "v": 4,
+  "line": 152,
+  "message": "line 152: expected declaration after 'var'"
+ },
+ {
+  "file": "pinescript-strategies\\strategies\\other\\StratBase.pine",
+  "v": 5,
+  "line": 20,
+  "message": "line 20: expected Newline at end of statement, got Eq '='"
+ },
+ {
+  "file": "tradingview-custom-indicators\\movings\\kaufman_adaptive_moving_average.pine",
+  "v": 3,
+  "line": 16,
+  "message": "line 16: expected Colon in ternary, got NumberLit '0'"
+ },
+ {
+  "file": "tradingview-pine-scripts\\3 EMA + Stochastic RSI + ATR.pine",
+  "v": 4,
+  "line": 45,
+  "message": "line 45: unexpected token If 'if' in expression"
+ },
+ {
+  "file": "tradingview-pine-scripts\\8 Whittle Down.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->&<- at offset: 92, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\AkiMosi Super Super Trend.pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Altcoin correlation Meter.pine",
+  "v": 1,
+  "line": 6,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\ATR GOD Strategy by TradeSmart (PineConnector-compatible).pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Big Snapper Alerts R3.0 + Chaiking Volatility condition + TP RSI.pine",
+  "v": 5,
+  "line": 15,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Bollinger Pair Trade.pine",
+  "v": 4,
+  "line": 242,
+  "message": "line 242: unexpected token If 'if' in expression"
+ },
+ {
+  "file": "tradingview-pine-scripts\\Combing in MACD and MTF.pine",
+  "v": 2,
+  "line": 2,
+  "message": "lex: unexpected character: ->™<- at offset: 63, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\ComiCo - Joel on Crypto - MACD Scalping.pine",
+  "v": 5,
+  "line": 510,
+  "message": "line 510: expected Colon in ternary, got Newline 'Newline'"
+ },
+ {
+  "file": "tradingview-pine-scripts\\Crypto Squeeze Strategy.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->!<- at offset: 119, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Cumulative RSI Strategy.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->!<- at offset: 75, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Custom Strategy omar achbehe.pine",
+  "v": 4,
+  "line": 10,
+  "message": "lex: unexpected character: ->\"<- at offset: 2635, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Cycles Strategy.pine",
+  "v": 4,
+  "line": 38,
+  "message": "line 38: expected Indent to open block of if, got Identifier 'strategy'"
+ },
+ {
+  "file": "tradingview-pine-scripts\\Daily Open Strategy (DOS).pine",
+  "v": 1,
+  "line": 7,
+  "message": "lex: unexpected character: ->™<- at offset: 117, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\DCA After Downtrend (by BHD_Trade_Bot).pine",
+  "v": 1,
+  "line": 10,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\DCA After Downtrend v2 (by BHD_Trade_Bot).pine",
+  "v": 1,
+  "line": 10,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Directional Movement Index.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->’<- at offset: 281, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\DUAL RSI.pine",
+  "v": 1,
+  "line": 1,
+  "message": "line 1: expected Newline at end of statement, got Identifier 'Name'"
+ },
+ {
+  "file": "tradingview-pine-scripts\\EMA + Bullish Engulfing Candle Pattern Strategy.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->!<- at offset: 23, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\EMA Cross + Divergence strategy (Div. signals by The Divergent).pine",
+  "v": 1,
+  "line": 8,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\eswaran ab.pine",
+  "v": 5,
+  "line": 11,
+  "message": "lex: unexpected character: ->™<- at offset: 56, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\ETF 3-Day Reversion Strategy.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->“<- at offset: 66, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Extended Recursive Bands Strategy.pine",
+  "v": 1,
+  "line": 10,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\fiveema.pine",
+  "v": 4,
+  "line": 6,
+  "message": "lex: unexpected character: ->™<- at offset: 88, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\FTB Strategy (Automated).pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->!<- at offset: 24, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Gap Reversion Strategy.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->~<- at offset: 351, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Hammers & Stars Strategy.pine",
+  "v": 1,
+  "line": 1,
+  "message": "lex: unexpected character: ->&<- at offset: 21, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Higher High - Lower Low Strategy.pine",
+  "v": 4,
+  "line": 27,
+  "message": "line 27: expected Indent to open block of if, got Identifier 'strategy'"
+ },
+ {
+  "file": "tradingview-pine-scripts\\HMA Support & Resistance Strategy.pine",
+  "v": 1,
+  "line": 1,
+  "message": "lex: unexpected character: ->&<- at offset: 25, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\HYE Combo Market [Strategy] (Vwap Mean Reversion + Trend Hunter).pine",
+  "v": 1,
+  "line": 15,
+  "message": "lex: unexpected character: ->'<- at offset: 58, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\HYE Mean Reversion SMA [Strategy].pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->'<- at offset: 53, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\HYE Mean Reversion VWAP [Strategy].pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->'<- at offset: 53, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\HYE Trend Hunter [Strategy].pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->ü<- at offset: 30, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Ichimoku Kinko Hyo- ETH 3h Strategy by tobuno.pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\iMoku (Ichimoku Complete Tool) - The Quant Science.pine",
+  "v": 5,
+  "line": 122,
+  "message": "line 122: unexpected token Switch 'switch' in expression"
+ },
+ {
+  "file": "tradingview-pine-scripts\\Improved simple RSI Buy-Sell at a level (SL-TP).pine",
+  "v": 1,
+  "line": 9,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Jaws Mean Reversion [Strategy].pine",
+  "v": 1,
+  "line": 1,
+  "message": "line 1: expected Newline at end of statement, got Identifier 'Name'"
+ },
+ {
+  "file": "tradingview-pine-scripts\\JetzGiantz Strategy.pine",
+  "v": 4,
+  "line": 17,
+  "message": "line 17: expected Indent to open block of if, got Identifier 'strategy'"
+ },
+ {
+  "file": "tradingview-pine-scripts\\kdj Strategy 41 - 31.pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\KDJ Strategy @ionvolution.pine",
+  "v": 1,
+  "line": 1,
+  "message": "lex: unexpected character: ->@<- at offset: 26, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\LargestMarketCaps.pine",
+  "v": 1,
+  "line": 10,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Lorentzian Classification Strategy.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->@<- at offset: 82, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Low-High-Trend Strategy.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->“<- at offset: 94, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\M8 BUY @ END OF DAY.pine",
+  "v": 1,
+  "line": 1,
+  "message": "lex: unexpected character: ->@<- at offset: 20, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\MA Simple Strategy with SL & TP & ATR Filters.pine",
+  "v": 1,
+  "line": 1,
+  "message": "lex: unexpected character: ->&<- at offset: 40, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\MarketGod for Tradingview(strategy).pine",
+  "v": 4,
+  "line": 567,
+  "message": "line 567: unexpected token If 'if' in expression"
+ },
+ {
+  "file": "tradingview-pine-scripts\\MESA + cRSI + MA + ALMA + MACD Strategy.pine",
+  "v": 1,
+  "line": 6,
+  "message": "lex: unexpected character: ->▼<- at offset: 17129, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\MESA + Volume + RSI Decision Points Strategy.pine",
+  "v": 1,
+  "line": 5,
+  "message": "lex: unexpected character: ->@<- at offset: 140, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Monthly Strategy Performance Table.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->&<- at offset: 191, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\moonshot hypertrender (supertrend strategy).pine",
+  "v": 1,
+  "line": 8,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Morun Astro Trend MAs cross Strategy.pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Moving Average Trap Strategy by D. Brigaglia.pine",
+  "v": 5,
+  "line": 45,
+  "message": "line 45: expected Newline after if condition, got Identifier 'strategy'"
+ },
+ {
+  "file": "tradingview-pine-scripts\\ms hypersupertrend.pine",
+  "v": 1,
+  "line": 9,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Multi MA Trend Following Strategy Template.pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Multi Trend Cross Strategy Template.pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\no dice.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->'<- at offset: 45, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Overnight Gap Analysis.pine",
+  "v": 1,
+  "line": 7,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\P-Signal Strategy & Alert.pine",
+  "v": 1,
+  "line": 1,
+  "message": "lex: unexpected character: ->&<- at offset: 31, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\P-Signal Strategy (BTCUSD Multi Frame).pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\P-Signal Strategy.pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Position management strategy framework [LM].pine",
+  "v": 4,
+  "line": 33,
+  "message": "line 33: expected Identifier as loop variable, got Var 'var'"
+ },
+ {
+  "file": "tradingview-pine-scripts\\Power X Strategy Back-test.pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\R3 ETF Strategy.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->“<- at offset: 52, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Repaint Demonstration in Security Function Call using Higher TF.pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->'<- at offset: 11, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\REVERSALS.pine",
+  "v": 1,
+  "line": 13,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\RSI Improved strategy.pine",
+  "v": 5,
+  "line": 44,
+  "message": "line 44: expected Indent to open block of if, got Identifier 'line2'"
+ },
+ {
+  "file": "tradingview-pine-scripts\\Strategy Execution Template - Master Pattern.pine",
+  "v": 1,
+  "line": 8,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Strategy NNFX Tester.pine",
+  "v": 1,
+  "line": 13,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Strategy- Range Breakout.pine",
+  "v": 1,
+  "line": 8,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\strategy.convert_to_symbol() demo.pine",
+  "v": 1,
+  "line": 8,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\SuperTrend.pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Take Profit On Trend (by BHD_Trade_Bot).pine",
+  "v": 1,
+  "line": 11,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Take Profit On Trend v2 (by BHD_Trade_Bot).pine",
+  "v": 1,
+  "line": 11,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\TASC 2022.08 Trading The Fear Index.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->█<- at offset: 13, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\TemaRSI Strategy.pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\TradingGroundhog - Strategy & Fractal V1.pine",
+  "v": 1,
+  "line": 1,
+  "message": "lex: unexpected character: ->&<- at offset: 41, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\TradingGroundhog - Strategy & Wavetrend V2.pine",
+  "v": 1,
+  "line": 1,
+  "message": "lex: unexpected character: ->&<- at offset: 41, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Triple EMA Strategy.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->!<- at offset: 106, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Triple Threat.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->\"<- at offset: 25459, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\TSI BTCUSD WS.pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\tw.tha_V1 EMA.pine",
+  "v": 5,
+  "line": 9,
+  "message": "lex: unexpected character: ->™<- at offset: 68, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\tw.tha_V2 EMA.pine",
+  "v": 5,
+  "line": 9,
+  "message": "lex: unexpected character: ->™<- at offset: 68, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Two Moving Average Cross test.pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\Ultimate Strategy Template.pine",
+  "v": 1,
+  "line": 1,
+  "message": "line 1: expected Newline at end of statement, got Identifier 'Name'"
+ },
+ {
+  "file": "tradingview-pine-scripts\\Under09_01.pine",
+  "v": 4,
+  "line": 6,
+  "message": "lex: unexpected character: ->™<- at offset: 91, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\V Bottom & V Top Pattern [Misu].pine",
+  "v": 1,
+  "line": 1,
+  "message": "lex: unexpected character: ->&<- at offset: 22, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\VIDYA Trend Strategy.pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\[2022] MACD Cross Strategy (version 1).pine",
+  "v": 1,
+  "line": 4,
+  "message": "lex: unexpected character: ->™<- at offset: 28, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\[astropark] Moon Phases [strategy].pine",
+  "v": 1,
+  "line": 7,
+  "message": "lex: unexpected character: ->@<- at offset: 59, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\[DuDu95] SSL 4C MACD Laugerre RSI Strategy.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->!<- at offset: 23, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\[D] Dudu 95 Strategy Template ver.1.1..pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->!<- at offset: 23, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\[fpemehd] SSL Baseline Strategy.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->!<- at offset: 23, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\[fpemehd] Strategy Template.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->!<- at offset: 23, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\[Sniper] SSL Hybrid + QQE MOD + Waddah Attar Strategy.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->’<- at offset: 18, skipped 1 characters."
+ },
+ {
+  "file": "tradingview-pine-scripts\\[Sniper] SuperTrend + SSL Hybrid + QQE MOD.pine",
+  "v": 1,
+  "line": 3,
+  "message": "lex: unexpected character: ->’<- at offset: 18, skipped 1 characters."
+ },
+ {
+  "file": "tv-downloads\\vsa-tanhef\\VolumeSpreadAnalysis_library_TanHef_v3_pine_v6.pine",
+  "v": 6,
+  "line": 11,
+  "message": "line 11: unexpected token Export 'export' in expression"
+ }
+]
